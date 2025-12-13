@@ -1,0 +1,67 @@
+#ifndef SQLINTERFACE_H
+#define SQLINTERFACE_H
+
+#include <QString>
+#include <QVector>
+#include <QMap>
+
+struct SalaryRange {
+    int minSalary;
+    int maxSalary;
+};
+
+struct JobInfo {
+    int jobId;
+    QString jobName;
+    int companyId;
+    int recruitTypeId;
+    int cityId;
+    QString requirements;
+    double salaryMin;
+    double salaryMax;
+    int salarySlabId;
+    QString createTime;
+    QString updateTime;
+    QString hrLastLoginTime;
+    QVector<int> tagIds;
+};
+
+class SQLInterface {
+public:
+    SQLInterface();
+    ~SQLInterface();
+
+    // SQLite connection: provide path to the .db file
+    bool connectSqlite(const QString &dbFilePath);
+
+    bool isConnected() const;
+    void disconnect();
+
+    // Schema creation (replaces old ensureDatabaseAndTable)
+    bool createAllTables();
+
+    // Company operations (companyId required - general ID)
+    int insertCompany(int companyId, const QString &companyName);
+
+    // City operations
+    int insertCity(const QString &cityName);
+
+    // Tag operations
+    int insertTag(const QString &tagName);
+
+    // Salary Slab operations
+    bool insertSalarySlab(int slabId, int maxSalary);
+
+    // Job operations
+    int insertJob(const JobInfo &job);
+    bool insertJobTagMapping(int jobId, int tagId);
+    QVector<JobInfo> queryAllJobs();
+
+    // Utility
+    SalaryRange getSalarySlabRange(int slabId);
+
+private:
+    bool openSqliteConnection(const QString &dbFilePath);
+};
+
+#endif // SQLINTERFACE_H
