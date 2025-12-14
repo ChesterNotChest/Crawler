@@ -9,12 +9,18 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Sql)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Sql)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Widgets Sql Network)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets Sql Network)
+
+# ==================== 第三方库配置 ====================
+set(THIRD_PARTY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include")
+set(CURL_DIR "${THIRD_PARTY_DIR}/curl-8.17.0_5-win64-mingw")
+set(NLOHMANN_JSON_DIR "${THIRD_PARTY_DIR}/nlohmann-json-develop")
 
 # Include db and tasks directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
+# 主应用源文件
 set(PROJECT_SOURCES
         main.cpp
         mainwindow.cpp
@@ -26,10 +32,25 @@ set(PROJECT_SOURCES
         tasks/sqltask.cpp
 )
 
+# 网络爬虫源文件
+set(NETWORK_SOURCES
+        network/job_crawler.h
+        network/job_crawler.cpp
+)
+
+# 测试源文件
+set(TEST_SOURCES
+        test/test.h
+        test/test_sql.cpp
+        test/test_job_crawler.cpp
+)
+
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(Crawler
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
+        ${NETWORK_SOURCES}
+        ${TEST_SOURCES}
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET Crawler APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
@@ -39,17 +60,70 @@ else()
     if(ANDROID)
         add_library(Crawler SHARED
             ${PROJECT_SOURCES}
+            ${NETWORK_SOURCES}
+            ${TEST_SOURCES}
         )
 # Define properties for Android with Qt 5 after find_package() calls as:
 #    set(ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
     else()
         add_executable(Crawler
             ${PROJECT_SOURCES}
+            ${NETWORK_SOURCES}
+            ${TEST_SOURCES}
         )
     endif()
 endif()
 
-target_link_libraries(Crawler PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Sql)
+# ==================== 包含目录 ====================
+target_include_directories(Crawler PRIVATE
+    ${NLOHMANN_JSON_DIR}/include
+    ${CURL_DIR}/include
+)
+
+# ==================== 链接库 ====================
+target_link_libraries(Crawler PRIVATE 
+    Qt${QT_VERSION_MAJOR}::Widgets 
+    Qt${QT_VERSION_MAJOR}::Sql
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Network
+)
+
+# Windows特定配置
+if(WIN32)
+    # 添加编译定义
+    target_compile_definitions(Crawler PRIVATE
+        CURL_STATICLIB
+        _WIN32_WINNT=0x0600
+    )
+
+    # 链接系统库
+    target_link_libraries(Crawler PRIVATE
+        ws2_32
+        wldap32
+        crypt32
+        normaliz
+        advapi32
+    )
+
+    # 检查CURL库文件是否存在
+    if(EXISTS "${CURL_DIR}/lib/libcurl.dll.a")
+        # 链接CURL库
+        target_link_libraries(Crawler PRIVATE
+            "${CURL_DIR}/lib/libcurl.dll.a"
+        )
+
+        # 如果存在DLL，复制到输出目录
+        if(EXISTS "${CURL_DIR}/bin/libcurl-x64.dll")
+            add_custom_command(TARGET Crawler POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy
+                "${CURL_DIR}/bin/libcurl-x64.dll"
+                "$<TARGET_FILE_DIR:Crawler>/libcurl-x64.dll"
+                COMMENT "Copying libcurl-x64.dll"
+            )
+        endif()
+    endif()
+endif()
+
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an

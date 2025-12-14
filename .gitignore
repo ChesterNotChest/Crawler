@@ -80,3 +80,7 @@ CMakeLists.txt.user*
 .rcc/
 .uic/
 /build*/
+
+# Ignore contents of include directory but keep the folder
+/include/*
+!/include/.gitkeep
