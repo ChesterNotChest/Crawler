@@ -1,0 +1,197 @@
+#include "sql_task.h"
+#include <QDebug>
+#include <unordered_set>
+
+SqlTask::SqlTask(SQLInterface *sqlInterface)
+    : m_sqlInterface(sqlInterface) {}
+
+// ========== 桥梁方法实现 ==========
+
+int SqlTask::storeJobData(const ::JobInfo& crawledJob) {
+    if (!m_sqlInterface) {
+        qDebug() << "Error: SQLInterface is null";
+        return -1;
+    }
+    
+    // 1. 转换数据类型
+    SQLNS::JobInfo sqlJob = convertJobInfo(crawledJob);
+    
+    // 2. 依赖数据：严格使用JSON中的ID，不生成占位名称
+    // 注意：若需要公司/城市/标签名称，应在爬虫阶段解析并传入，当前仅依赖ID。
+    
+    // 2.x 可选：按名称插入公司/城市/标签（若提供名称）。
+    // 公司：如果有company_id和company_name，按ID+名称插入/更新
+    if (crawledJob.company_id > 0 && !crawledJob.company_name.empty()) {
+        insertCompany(crawledJob.company_id, stdStringToQString(crawledJob.company_name));
+    }
+
+    // 标签：如果提供了名称，增量插入并建立映射
+    QVector<int> insertedTagIds;
+    std::unordered_set<std::string> seenTagNames;
+    for (const auto& tagNameStr : crawledJob.tag_names) {
+        if (tagNameStr.empty()) continue;
+        if (seenTagNames.insert(tagNameStr).second) {
+            int tagId = insertTag(stdStringToQString(tagNameStr));
+            if (tagId > 0) {
+                insertedTagIds.append(tagId);
+            }
+        }
+    }
+
+    // 2.y 城市：如果提供地区名称，按名称插入城市并使用返回的自增ID
+    if (!crawledJob.area_name.empty()) {
+        int cityId = insertCity(stdStringToQString(crawledJob.area_name));
+        if (cityId > 0) {
+            sqlJob.cityId = cityId;
+        }
+    }
+
+    // 3. 存储主Job数据
+    int jobId = m_sqlInterface->insertJob(sqlJob);
+    if (jobId < 0) {
+        qDebug() << "Failed to insert job:" << crawledJob.info_id;
+        return -1;
+    }
+    
+    // 4. 建立JobTagMapping关联
+    // 优先使用通过名称增量插入得到的tagId；若为空则回退使用原始tag_ids
+    if (!insertedTagIds.isEmpty()) {
+        for (int tagId : insertedTagIds) {
+            insertJobTagMapping(jobId, tagId);
+        }
+    } else {
+        for (int tagId : crawledJob.tag_ids) {
+            insertJobTagMapping(jobId, tagId);
+        }
+    }
+    
+    return jobId;
+}
+
+int SqlTask::storeJobDataBatch(const std::vector<::JobInfo>& crawledJobs) {
+    int successCount = 0;
+    for (const auto& job : crawledJobs) {
+        if (storeJobData(job) >= 0) {
+            successCount++;
+        }
+    }
+    return successCount;
+}
+
+// ========== 内部转换方法实现 ==========
+
+SQLNS::JobInfo SqlTask::convertJobInfo(const ::JobInfo& crawledJob) {
+    SQLNS::JobInfo sqlJob;
+    
+    // 基本字段转换
+    sqlJob.jobId = static_cast<int>(crawledJob.info_id);
+    sqlJob.jobName = stdStringToQString(crawledJob.info_name);
+    sqlJob.companyId = crawledJob.company_id;
+    sqlJob.recruitTypeId = crawledJob.type_id;
+    sqlJob.cityId = crawledJob.area_id;
+    sqlJob.requirements = stdStringToQString(crawledJob.requirements);
+    
+    // 薪资转换
+    sqlJob.salaryMin = crawledJob.salary_min;
+    sqlJob.salaryMax = crawledJob.salary_max;
+    
+    // 薪资档次ID计算
+    sqlJob.salarySlabId = calculateSalarySlabId(crawledJob.salary_min, crawledJob.salary_max);
+    
+    // 时间字段转换
+    sqlJob.createTime = stdStringToQString(crawledJob.create_time);
+    sqlJob.updateTime = stdStringToQString(crawledJob.update_time);
+    sqlJob.hrLastLoginTime = stdStringToQString(crawledJob.hr_last_login);
+    
+    // 标签ID列表转换
+    for (int tagId : crawledJob.tag_ids) {
+        sqlJob.tagIds.append(tagId);
+    }
+    
+    return sqlJob;
+}
+
+int SqlTask::calculateSalarySlabId(double salaryMin, double salaryMax) {
+    // 根据最高薪资确定档次 (单位: K)
+    int salary = static_cast<int>(std::max(salaryMin, salaryMax));
+    
+    if (salary <= 15) return 1;      // ≤15k
+    else if (salary <= 25) return 2; // 15k-25k
+    else if (salary <= 40) return 3; // 25k-40k
+    else if (salary <= 60) return 4; // 40k-60k
+    else if (salary <= 100) return 5;// 60k-100k
+    else return 6;                    // >100k
+}
+
+// ========== 基础SQL操作方法 ==========
+
+// === 一般ID部分 (需要传入ID) ===
+
+int SqlTask::insertJob(int jobId, const QString &jobName, int companyId, int recruitTypeId,
+                       int cityId, const QString &requirements, double salaryMin, double salaryMax,
+                       int salarySlabId, const QString &createTime, const QString &updateTime,
+                       const QString &hrLastLoginTime) {
+    if (!m_sqlInterface) return -1;
+    
+    SQLNS::JobInfo job;
+    job.jobId = jobId;  // 传入ID
+    job.jobName = jobName;
+    job.companyId = companyId;
+    job.recruitTypeId = recruitTypeId;
+    job.cityId = cityId;
+    job.requirements = requirements;
+    job.salaryMin = salaryMin;
+    job.salaryMax = salaryMax;
+    job.salarySlabId = salarySlabId;
+    job.createTime = createTime;
+    job.updateTime = updateTime;
+    job.hrLastLoginTime = hrLastLoginTime;
+    
+    return m_sqlInterface->insertJob(job);
+}
+
+int SqlTask::insertCompany(int companyId, const QString &companyName) {
+    if (!m_sqlInterface) return -1;
+    
+    // Company表需要手动指定companyId (一般ID)
+    return m_sqlInterface->insertCompany(companyId, companyName);
+}
+
+// === 自增ID部分 (不传入ID，数据库自增) ===
+
+int SqlTask::insertCity(const QString &cityName) {
+    if (!m_sqlInterface) return -1;
+    
+    // cityId 自增，不传入ID
+    return m_sqlInterface->insertCity(cityName);
+}
+
+int SqlTask::insertTag(const QString &tagName) {
+    if (!m_sqlInterface) return -1;
+    
+    // tagId 自增，不传入ID
+    return m_sqlInterface->insertTag(tagName);
+}
+
+// === 自定义ID部分 (需要传入ID) ===
+
+bool SqlTask::insertSalarySlab(int salarySlabId, int maxSalary) {
+    if (!m_sqlInterface) return false;
+    
+    // salarySlabId 自设计，传入ID
+    return m_sqlInterface->insertSalarySlab(salarySlabId, maxSalary);
+}
+
+// === JobTagMapping ===
+
+bool SqlTask::insertJobTagMapping(int jobId, int tagId) {
+    if (!m_sqlInterface) return false;
+    return m_sqlInterface->insertJobTagMapping(jobId, tagId);
+}
+
+// === Query operations ===
+
+QVector<SQLNS::JobInfo> SqlTask::queryAllJobs() {
+    if (!m_sqlInterface) return {};
+    return m_sqlInterface->queryAllJobs();
+}

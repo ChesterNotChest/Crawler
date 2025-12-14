@@ -28,21 +28,33 @@ set(PROJECT_SOURCES
         mainwindow.ui
         db/sqlinterface.h 
         db/sqlinterface.cpp
-        tasks/sqltask.h
-        tasks/sqltask.cpp
+        tasks/sql_task.h
+        tasks/sql_task.cpp
+        tasks/internet_task.h
+        tasks/internet_task.cpp
+        tasks/crawler_task.h
+        tasks/crawler_task.cpp
 )
 
 # 网络爬虫源文件
 set(NETWORK_SOURCES
         network/job_crawler.h
         network/job_crawler.cpp
+        network/job_crawler_main.cpp
 )
 
 # 测试源文件
 set(TEST_SOURCES
         test/test.h
-        test/test_sql.cpp
-        test/test_job_crawler.cpp
+        # 单元测试
+        test/test_internet_task.cpp
+        test/test_sql_task.cpp
+        # 集成测试
+        test/test_crawler_task.cpp
+        # [Deprecated] 以下测试已被新架构替代，可删除
+        # test/test_sql.cpp
+        # test/test_job_crawler.cpp
+        # test/test_integration.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)

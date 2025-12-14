@@ -386,6 +386,7 @@ std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_dat
                     area_id_counter++;
                 }
                 job_info.area_id = (job_city.empty()) ? 0 : area_dict[job_city];
+                job_info.area_name = job_city;
 
                 // 薪资档次ID
                 int salary_max = job_data.value("salaryMax", 0);
@@ -436,47 +437,90 @@ std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_dat
                     }
                 }
 
-                // 薪资（平均值）
-                int salary_min = job_data.value("salaryMin", 0);
-                job_info.salary = (salary_max > 0 || salary_min > 0) ? (salary_min + salary_max) / 2.0 : 0.0;
+// 薪资最小值已在前面处理，这里处理创建时间
+				int64_t create_time = job_data.value("createTime", 0);
+				job_info.create_time = timestamp_to_datetime(create_time);
 
-                // 联系方式
-                job_info.contact = "";
+                // 更新时间
+                int64_t update_time = job_data.value("updateTime", create_time);
+                job_info.update_time = timestamp_to_datetime(update_time);
+
+                // HR最后登录时间 + 公司信息 (identity为列表，缺失则报错)
+                int64_t hr_login_time = 0;
                 try {
-                    // 从user.identity获取
                     if (job_data.contains("user") && job_data["user"].is_object()) {
                         auto user_data = job_data["user"];
-                        if (user_data.contains("identity") && user_data["identity"].is_array() &&
-                            !user_data["identity"].empty()) {
-                            auto identity = user_data["identity"][0];
-                            if (identity.is_object()) {
-                                std::string hr_name = identity.value("name", "");
-                                std::string company_name = identity.value("companyName", "");
-                                if (!hr_name.empty() || !company_name.empty()) {
-                                    job_info.contact = "HR: " + hr_name + " | 公司: " + company_name;
-                                }
-                            }
+                        if (user_data.contains("loginTime")) {
+                            hr_login_time = user_data.value("loginTime", 0);
                         }
-                    }
 
-                    // 从apiSimpleBossUser获取
-                    if (job_info.contact.empty() && job_data.contains("apiSimpleBossUser") &&
-                        job_data["apiSimpleBossUser"].is_object()) {
-                        auto api_boss_user = job_data["apiSimpleBossUser"];
-                        std::string user_appellation = api_boss_user.value("userAppellation", "");
-                        if (!user_appellation.empty()) {
-                            job_info.contact = "HR: " + user_appellation;
+                        if (user_data.contains("identity") && user_data["identity"].is_array()) {
+                            auto identity_list = user_data["identity"];
+                            for (const auto& identity : identity_list) {
+                                if (!identity.is_object()) continue;
+                                if (identity.contains("companyId")) {
+                                    job_info.company_id = identity.value("companyId", 0);
+                                }
+                                if (identity.contains("companyName") && identity["companyName"].is_string()) {
+                                    job_info.company_name = identity["companyName"].get<std::string>();
+                                }
+                                if (job_info.company_id > 0 && !job_info.company_name.empty()) break;
+                            }
+                        } else {
+                            print_debug_info("数据解析", "缺少identity列表", "", DebugLevel::DL_ERROR);
                         }
                     }
                 } catch (const std::exception& e) {
                     print_debug_info("数据解析",
-                                     "职位" + std::to_string(i) + "的联系方式提取异常: " + std::string(e.what()),
+                                     "职位" + std::to_string(i) + "的HR/公司信息提取异常: " + std::string(e.what()),
                                      "", DebugLevel::DL_ERROR);
                 }
+                job_info.hr_last_login = timestamp_to_datetime(hr_login_time);
 
-                // 创建日期
-                int64_t create_time = job_data.value("createTime", 0);
-                job_info.create_date = timestamp_to_datetime(create_time);
+                if (job_info.company_id == 0 || job_info.company_name.empty()) {
+                    print_debug_info("数据解析", "公司信息缺失 (identity列表未提供companyId/companyName)", "", DebugLevel::DL_ERROR);
+                }
+
+                // 标签提取: data.pcTagInfo.jobInfoTagList.tag.title/内容
+                try {
+                    if (job_data.contains("pcTagInfo") && job_data["pcTagInfo"].is_object()) {
+                        auto tag_info = job_data["pcTagInfo"];
+                        if (tag_info.contains("jobInfoTagList") && tag_info["jobInfoTagList"].is_array()) {
+                            auto tag_list = tag_info["jobInfoTagList"];
+                            for (const auto& tag_item : tag_list) {
+                                if (!tag_item.is_object()) continue;
+
+                                // 优先从 tag/title
+                                if (tag_item.contains("tag") && tag_item["tag"].is_object()) {
+                                    auto tag_obj = tag_item["tag"];
+                                    if (tag_obj.contains("title") && tag_obj["title"].is_string()) {
+                                        job_info.tag_names.push_back(tag_obj["title"].get<std::string>());
+                                    }
+                                    if (tag_obj.contains("id")) {
+                                        int tag_id = tag_obj.value("id", 0);
+                                        if (tag_id > 0) job_info.tag_ids.push_back(tag_id);
+                                    }
+                                }
+
+                                // 兼容content/name/id直接在元素上
+                                if (tag_item.contains("content") && tag_item["content"].is_string()) {
+                                    job_info.tag_names.push_back(tag_item["content"].get<std::string>());
+                                } else if (tag_item.contains("name") && tag_item["name"].is_string()) {
+                                    job_info.tag_names.push_back(tag_item["name"].get<std::string>());
+                                }
+
+                                if (tag_item.contains("id")) {
+                                    int tag_id = tag_item.value("id", 0);
+                                    if (tag_id > 0) job_info.tag_ids.push_back(tag_id);
+                                }
+                            }
+                        }
+                    }
+                } catch (const std::exception& e) {
+                    print_debug_info("数据解析",
+                                     "职位" + std::to_string(i) + "的标签信息提取异常: " + std::string(e.what()),
+                                     "", DebugLevel::DL_ERROR);
+                }
 
                 // 添加到主表数据列表
                 job_info_list.push_back(job_info);
@@ -566,9 +610,8 @@ void print_data_formatted(const std::vector<JobInfo>& job_info_list,
                     qDebug() << "岗位要求: 无";
                 }
 
-                qDebug() << "薪资:" << job.salary;
-                qDebug() << "联系方式:" << job.contact.c_str();
-                qDebug() << "创建日期:" << job.create_date.c_str();
+                qDebug() << "薪资:" << job.salary_min << "-" << job.salary_max << "K";
+                qDebug() << "创建时间:" << job.create_time.c_str();
                 qDebug() << QString(40, '-');
             }
             if (job_info_list.size() > 5) {

@@ -32,9 +32,8 @@ void print_data_formatted(const std::vector<JobInfo>& job_info_list,
                     std::cout << "岗位要求: 无" << std::endl;
                 }
 
-                std::cout << "薪资: " << job.salary << std::endl;
-                std::cout << "联系方式: " << job.contact << std::endl;
-                std::cout << "创建日期: " << job.create_date << std::endl;
+                std::cout << "薪资: " << job.salary_min << "-" << job.salary_max << "K" << std::endl;
+                std::cout << "创建时间: " << job.create_time << std::endl;
                 std::cout << std::string(40, '-') << std::endl;
             }
             if (job_info_list.size() > 5) {

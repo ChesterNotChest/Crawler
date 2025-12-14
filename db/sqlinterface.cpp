@@ -217,7 +217,7 @@ bool SQLInterface::insertSalarySlab(int slabId, int maxSalary) {
 	return q.exec();
 }
 
-int SQLInterface::insertJob(const JobInfo &job) {
+int SQLInterface::insertJob(const SQLNS::JobInfo &job) {
 	if (!isConnected()) return -1;
 	const QString connName = QStringLiteral("crawler_conn");
 	QSqlDatabase db = QSqlDatabase::database(connName);
@@ -257,8 +257,8 @@ bool SQLInterface::insertJobTagMapping(int jobId, int tagId) {
 	return q.exec();
 }
 
-QVector<JobInfo> SQLInterface::queryAllJobs() {
-	QVector<JobInfo> jobs;
+QVector<SQLNS::JobInfo> SQLInterface::queryAllJobs() {
+	QVector<SQLNS::JobInfo> jobs;
 	if (!isConnected()) return jobs;
 	const QString connName = QStringLiteral("crawler_conn");
 	QSqlDatabase db = QSqlDatabase::database(connName);
@@ -270,7 +270,7 @@ QVector<JobInfo> SQLInterface::queryAllJobs() {
 		return jobs;
 	}
 	while (q.next()) {
-		JobInfo job;
+		SQLNS::JobInfo job;
 		job.jobId = q.value(0).toInt();
 		job.jobName = q.value(1).toString();
 		job.companyId = q.value(2).toInt();
@@ -301,8 +301,8 @@ QVector<JobInfo> SQLInterface::queryAllJobs() {
 	return jobs;
 }
 
-SalaryRange SQLInterface::getSalarySlabRange(int slabId) {
-	SalaryRange range{0, 0};
+SQLNS::SalaryRange SQLInterface::getSalarySlabRange(int slabId) {
+	SQLNS::SalaryRange range{0, 0};
 	if (!isConnected()) return range;
 	const QString connName = QStringLiteral("crawler_conn");
 	QSqlDatabase db = QSqlDatabase::database(connName);
