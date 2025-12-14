@@ -162,7 +162,7 @@ db.connect("crawler.db");
 QSqlQuery result = db.query("SELECT * FROM tasks");
 ```
 
-## 📄 许可证
+## � 许可证
 
 MIT License
 
