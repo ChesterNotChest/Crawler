@@ -31,7 +31,7 @@ void test_crawler_task_integration() {
     
     // ========== 测试场景2: 爬取并存储多页 ==========
     qDebug() << "\n[场景2] 批量爬取并存储多页数据";
-    int count2 = crawlerTask.crawlAndStoreMultiPage(2, 3, 5);
+    int count2 = crawlerTask.crawlAndStoreMultiPage(2, 3, 20);
     qDebug() << "结果: 成功存储" << count2 << "条数据\n";
     
     // ========== 测试场景3: 仅爬取模式 ==========

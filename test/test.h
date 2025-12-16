@@ -45,14 +45,4 @@ void test_sql_task_unit();
  */
 void test_crawler_task_integration();
 
-// ============================================================
-// 废弃的测试 - 可删除
-// ============================================================
-
-// [Deprecated] 以下测试已被新架构替代，可安全删除
-void test_sql_database();           // 被 test_sql_task_unit 替代
-void test_job_crawler();            // 被 test_internet_task_unit 替代
-void test_integration_crawler_to_sql(); // 被 test_crawler_task_integration 替代
-void test_crawler_task_workflow();  // 重命名为 test_crawler_task_integration
-
 #endif // TEST_H

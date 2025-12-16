@@ -88,16 +88,16 @@ SK: 薪资档次ID (int): 自设计ID（见下）
 HR上次线时间(dateTime) data.user.loginTime
 
 PK: 公司ID data.companyId
-公司名称 (char[]) data.identity.companyName
+公司名称 (char[]) data.user.identity[].companyName（仅从identity列表获取，缺失视为错误）
 
 PK: 类型ID data.recruitType
 类型名称 (char[]):   （固定枚举，1 校招，2 实习，3 社招）
 
 PK: 地区ID: 自增ID
-地区名称: data.jobCity
+地区名称: data.jobCity（字符串）；在数据库侧按名称插入/查找，返回自增cityId
 
 PK: TagID: 自增ID
-Tag内容：data.pcTagInfo.jobInfoTagList （需要完成遍历逻辑）
+Tag内容：遍历 data.pcTagInfo.jobInfoTagList，优先取 `tag.title`（兼容 `content`/`name`），对标题进行去重后插入 JobTag（INSERT OR IGNORE），并返回对应 tagId 用于 JobTagMapping
 
 PK: 薪资档次ID: 自设计ID
 薪资上限 (int)（设计阶梯，按Max与上限比较，阈值分类存储）
@@ -165,11 +165,12 @@ cmake --build . --config Debug
 ## 📚 模块说明
 
 ### 网络爬虫模块 (network/)
-- **job_crawler.h/cpp** - 主爬虫类，管理爬虫任务
-- **job_crawler_network.cpp** - 网络请求实现
-- **job_crawler_parser.cpp** - 响应数据解析
-- **job_crawler_printer.cpp** - 数据输出处理
-- **job_crawler_utils.cpp** - 工具函数
+- **job_crawler.h** - 接口与数据结构定义（`JobInfo`/`MappingData`/`DebugLevel` 以及函数声明）
+- **job_crawler_main.cpp** - 爬虫主入口（聚合网络、解析与打印）
+- **job_crawler_network.cpp** - 网络请求实现（libcurl，启用SSL配置与30s超时，附带User-Agent）
+- **job_crawler_parser.cpp** - 响应数据解析（单一权威实现，支持原始JSON调试打印）
+- **job_crawler_printer.cpp** - 数据输出（统一使用 `qDebug()`，英文标签）
+- **job_crawler_utils.cpp** - 工具函数（`print_debug_info` 使用 `qDebug()`、时间戳转换、CURL写回调）
 
 ### 数据库模块 (db/)
 - **sqlinterface.h/cpp** - SQL执行接口
@@ -184,8 +185,9 @@ cmake --build . --config Debug
 ## 🧪 测试
 
 项目包含测试代码在 `test/` 目录：
-- `test_job_crawler.cpp` - 爬虫功能测试
-- `test_sql.cpp` - 数据库操作测试
+- `test_internet_task.cpp` - 网络爬取单元测试
+- `test_sql_task.cpp` - SQL任务/映射与存储测试
+- `test_crawler_task.cpp` - 爬取+存储集成测试
 
 运行测试：
 ```bash
@@ -199,32 +201,11 @@ cmake --build . --target test
 - 包含路径配置
 - libcurl 和 nlohmann-json 集成
 
-## 📝 使用示例
+### 日志与调试
+- 统一使用 `qDebug()` 输出，所有标签为英文（例如：`[DEBUG]`, `Timestamp`, `DataPrint`）。
+- 解析阶段支持原始JSON全文调试输出，便于定位字段差异。
+- 时间戳按 `int64`（毫秒）解析并格式化，避免32位溢出。
 
-### 创建爬虫任务
-```cpp
-#include "network/job_crawler.h"
-
-// 创建爬虫实例
-JobCrawler crawler;
-
-// 设置目标URL
-crawler.setUrl("https://example.com");
-
-// 启动爬取
-crawler.start();
-```
-
-### 数据库操作
-```cpp
-#include "db/sqlinterface.h"
-
-SqlInterface db;
-db.connect("crawler.db");
-
-// 执行查询
-QSqlQuery result = db.query("SELECT * FROM tasks");
-```
 
 ## � 许可证
 
@@ -237,3 +218,8 @@ MIT License
 ## 📧 联系方式
 
 如有问题，请提交 Issue 或联系项目维护者。
+
+## 更新日志
+2025年12月16日
+* Chester: 日志与输出统一为 `qDebug()` 且使用英文标签；清理过时文件并更新 CMake，模块边界（network/parser/utils/printer）明确。
+* Chester: 解析和数据映射规范化：城市按名称入库自增，公司仅从 `user.identity[]` 获取，标签取 `tag.title` 去重入库。修复了 `int64` 毫秒时间戳的相关bug。

@@ -39,8 +39,11 @@ set(PROJECT_SOURCES
 # 网络爬虫源文件
 set(NETWORK_SOURCES
         network/job_crawler.h
-        network/job_crawler.cpp
         network/job_crawler_main.cpp
+        network/job_crawler_parser.cpp
+        network/job_crawler_network.cpp
+        network/job_crawler_utils.cpp
+        network/job_crawler_printer.cpp
 )
 
 # 测试源文件

@@ -8,7 +8,14 @@ std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_dat
     std::vector<JobInfo> job_info_list;
     MappingData mapping_data;
 
-    print_debug_info("数据解析", "开始解析JSON数据");
+    // print_debug_info("数据解析", "开始解析JSON数据");
+    // // Raw JSON debug (full text)
+    // try {
+    //     std::string raw = json_data.dump();
+    //     print_debug_info("raw", "json full", raw);
+    // } catch (...) {
+    //     print_debug_info("raw", "json dump failed", "");
+    // }
 
     // 薪资档次定义
     std::vector<std::pair<int, int>> salary_thresholds = {
@@ -222,11 +229,11 @@ std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_dat
                 job_info.area_name = job_city;
 
                 // 薪资档次ID
-                int salary_max = job_data.value("salaryMax", 0);
+                int salary_max_for_slab = job_data.value("salaryMax", 0);
                 job_info.salary_level_id = 0;
                 for (size_t level_id = 0; level_id < salary_thresholds.size(); ++level_id) {
                     auto threshold = salary_thresholds[level_id];
-                    if (threshold.first <= salary_max && salary_max <= threshold.second) {
+                    if (threshold.first <= salary_max_for_slab && salary_max_for_slab <= threshold.second) {
                         job_info.salary_level_id = level_id + 1;
                         salary_level_dict[job_info.salary_level_id] = threshold.second;
                         break;
@@ -270,17 +277,19 @@ std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_dat
                     }
                 }
 
-                // 薪资最小值
+                // 薪资最小值/最大值 + 调试输出
                 int salary_min = job_data.value("salaryMin", 0);
-                job_info.salary_min = salary_min;
-
-                // 薪资最大值
                 int salary_max = job_data.value("salaryMax", 0);
+                job_info.salary_min = salary_min;
                 job_info.salary_max = salary_max;
+                print_debug_info("parse", "Job now: " + job_info.info_name +
+                    "salaryMin=" + std::to_string(salary_min) + ", salaryMax=" + std::to_string(salary_max));
 
-                // 创建时间
-                int64_t create_time = job_data.value("createTime", 0);
+                // 创建时间 + 调试输出
+                int64_t create_time = job_data.value("createTime", static_cast<int64_t>(0));
                 job_info.create_time = timestamp_to_datetime(create_time);
+                print_debug_info("parse", "Job now: " + job_info.info_name +
+                    "createTime_ms=" + std::to_string(create_time) + ", parsed=" + job_info.create_time);
 
                 // 更新时间
                 int64_t update_time = job_data.value("updateTime", create_time);
@@ -292,7 +301,7 @@ std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_dat
                     if (job_data.contains("user") && job_data["user"].is_object()) {
                         auto user_data = job_data["user"];
                         if (user_data.contains("loginTime")) {
-                            hr_login_time = user_data.value("loginTime", 0);
+                            hr_login_time = user_data.value("loginTime", static_cast<int64_t>(0));
                         }
                     }
                 } catch (const std::exception& e) {

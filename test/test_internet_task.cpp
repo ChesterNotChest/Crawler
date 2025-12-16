@@ -19,7 +19,7 @@ void test_internet_task_unit() {
     
     // ========== 场景1: 单页爬取 ==========
     qDebug() << "[场景1] 单页数据爬取";
-    auto [jobs1, mapping1] = internetTask.fetchJobData(1, 5);
+    auto [jobs1, mapping1] = internetTask.fetchJobData(1, 20);
     
     qDebug() << "✓ 爬取结果:";
     qDebug() << "  - JobInfo数量:" << jobs1.size();
@@ -38,11 +38,11 @@ void test_internet_task_unit() {
     
     // ========== 场景2: 多页爬取 ==========
     qDebug() << "\n[场景2] 多页批量爬取 (第2-3页)";
-    auto [jobs2, mapping2] = internetTask.fetchJobDataMultiPage(2, 3, 5);
+    auto [jobs2, mapping2] = internetTask.fetchJobDataMultiPage(2, 5, 20);
     
     qDebug() << "✓ 批量爬取结果:";
     qDebug() << "  - 总JobInfo数量:" << jobs2.size();
-    qDebug() << "  - 预期数量: ~10条 (2页 × 5条/页)";
+    qDebug() << "  - 预期数量: ~40条 (2页 × 20条/页)";
     qDebug() << "  - 合并后映射数据量:" << mapping2.type_list.size() + mapping2.area_list.size();
     
     // ========== 场景3: 数据结构验证 ==========

@@ -22,8 +22,16 @@ std::optional<json> fetch_job_data(const std::string& url, const std::map<std::s
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data.c_str());
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_data);
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);  // 增加超时时间
         curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+
+        // 添加SSL配置
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+        curl_easy_setopt(curl, CURLOPT_USE_SSL, CURLUSESSL_TRY);
+
+        // 设置用户代理
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
 
         // 设置HTTP头
         struct curl_slist* header_list = nullptr;
