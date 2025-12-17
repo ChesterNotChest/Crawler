@@ -163,15 +163,45 @@ int SQLInterface::insertCompany(int companyId, const QString &companyName) {
 	if (!isConnected()) return -1;
 	const QString connName = QStringLiteral("crawler_conn");
 	QSqlDatabase db = QSqlDatabase::database(connName);
-	QSqlQuery q(db);
-	q.prepare("INSERT INTO Company(companyId, companyName) VALUES(:id, :name)");
-	q.bindValue(":id", companyId);
-	q.bindValue(":name", companyName);
-	if (!q.exec()) {
-		qDebug() << "Insert Company failed:" << q.lastError().text();
-		return -1;
+
+	// Insert or ignore if the company already exists (avoid UNIQUE constraint errors)
+	{
+		QSqlQuery q(db);
+		q.prepare("INSERT OR IGNORE INTO Company(companyId, companyName) VALUES(:id, :name)");
+		q.bindValue(":id", companyId);
+		q.bindValue(":name", companyName);
+		q.exec(); // ignore duplicates silently
 	}
-	return companyId;
+
+	// Optional: update companyName if it differs and non-empty
+	if (!companyName.isEmpty()) {
+		QSqlQuery qs(db);
+		qs.prepare("SELECT companyName FROM Company WHERE companyId = :id");
+		qs.bindValue(":id", companyId);
+		if (qs.exec() && qs.next()) {
+			const QString existingName = qs.value(0).toString();
+			if (existingName != companyName) {
+				QSqlQuery qu(db);
+				qu.prepare("UPDATE Company SET companyName = :name WHERE companyId = :id");
+				qu.bindValue(":name", companyName);
+				qu.bindValue(":id", companyId);
+				qu.exec();
+			}
+			return companyId;
+		}
+	}
+
+	// As a fallback, verify the row exists
+	{
+		QSqlQuery qv(db);
+		qv.prepare("SELECT companyId FROM Company WHERE companyId = :id");
+		qv.bindValue(":id", companyId);
+		if (qv.exec() && qv.next()) {
+			return companyId;
+		}
+	}
+
+	return -1;
 }
 
 int SQLInterface::insertCity(const QString &cityName) {
@@ -227,7 +257,7 @@ int SQLInterface::insertJob(const SQLNS::JobInfo &job) {
 		"requirements, salaryMin, salaryMax, salarySlabId, createTime, updateTime, hrLastLoginTime) "
 		"VALUES(:jobId, :jobName, :companyId, :recruitTypeId, :cityId, "
 		":requirements, :salaryMin, :salaryMax, :salarySlabId, :createTime, :updateTime, :hrLastLoginTime)");
-	q.bindValue(":jobId", job.jobId);
+	q.bindValue(":jobId", QVariant::fromValue<qlonglong>(job.jobId));
 	q.bindValue(":jobName", job.jobName);
 	q.bindValue(":companyId", job.companyId);
 	q.bindValue(":recruitTypeId", job.recruitTypeId);
@@ -243,16 +273,16 @@ int SQLInterface::insertJob(const SQLNS::JobInfo &job) {
 		qDebug() << "Insert Job failed:" << q.lastError().text();
 		return -1;
 	}
-	return job.jobId;
+	return static_cast<int>(job.jobId);
 }
 
-bool SQLInterface::insertJobTagMapping(int jobId, int tagId) {
+bool SQLInterface::insertJobTagMapping(long long jobId, int tagId) {
 	if (!isConnected()) return false;
 	const QString connName = QStringLiteral("crawler_conn");
 	QSqlDatabase db = QSqlDatabase::database(connName);
 	QSqlQuery q(db);
 	q.prepare("INSERT OR IGNORE INTO JobTagMapping(jobId, tagId) VALUES(:jobId, :tagId)");
-	q.bindValue(":jobId", jobId);
+	q.bindValue(":jobId", QVariant::fromValue<qlonglong>(jobId));
 	q.bindValue(":tagId", tagId);
 	return q.exec();
 }
@@ -271,7 +301,7 @@ QVector<SQLNS::JobInfo> SQLInterface::queryAllJobs() {
 	}
 	while (q.next()) {
 		SQLNS::JobInfo job;
-		job.jobId = q.value(0).toInt();
+		job.jobId = q.value(0).toLongLong();
 		job.jobName = q.value(1).toString();
 		job.companyId = q.value(2).toInt();
 		job.recruitTypeId = q.value(3).toInt();

@@ -61,6 +61,8 @@ struct SalaryLevelInfo {
 };
 
 struct MappingData {
+    int currentPage = 0;                            // 当前页码
+    int totalPage = 0;                              // 总页数
     std::vector<TypeInfo> type_list;
     std::vector<AreaInfo> area_list;
     std::vector<SalaryLevelInfo> salary_level_list;
@@ -74,6 +76,7 @@ size_t write_callback(void* contents, size_t size, size_t nmemb, std::string* re
 std::optional<json> fetch_job_data(const std::string& url, const std::map<std::string, std::string>& headers,
                                    const std::string& post_data);
 std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_data);
+std::string sanitize_html_to_text(const std::string& html);
 void print_data_formatted(const std::vector<JobInfo>& job_info_list,
                           const std::vector<TypeInfo>& type_list,
                           const std::vector<AreaInfo>& area_list,

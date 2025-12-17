@@ -2,6 +2,44 @@
 #include <iostream>
 #include <vector>
 #include <map>
+#include <cstdint>
+
+// Safe getters to avoid exceptions when JSON fields are null or of unexpected types
+static inline int get_int_safe(const json& obj, const char* key, int def = 0) {
+    auto it = obj.find(key);
+    if (it == obj.end() || it->is_null()) return def;
+    if (it->is_number_integer()) return it->get<int>();
+    if (it->is_number()) return static_cast<int>(it->get<double>());
+    if (it->is_string()) {
+        try { return std::stoi(it->get<std::string>()); } catch (...) { return def; }
+    }
+    return def;
+}
+
+static inline int64_t get_int64_safe(const json& obj, const char* key, int64_t def = 0) {
+    auto it = obj.find(key);
+    if (it == obj.end() || it->is_null()) return def;
+    if (it->is_number_integer()) return it->get<int64_t>();
+    if (it->is_number_float()) return static_cast<int64_t>(it->get<double>());
+    if (it->is_string()) {
+        try { return std::stoll(it->get<std::string>()); } catch (...) { return def; }
+    }
+    return def;
+}
+
+static inline double get_double_safe(const json& obj, const char* key, double def = 0.0) {
+    auto it = obj.find(key);
+    if (it == obj.end() || it->is_null()) return def;
+    if (it->is_number()) return it->get<double>();
+    return def;
+}
+
+static inline std::string get_string_safe(const json& obj, const char* key, const std::string& def = "") {
+    auto it = obj.find(key);
+    if (it == obj.end() || it->is_null()) return def;
+    if (it->is_string()) return it->get<std::string>();
+    return def;
+}
 
 // 数据解析函数
 std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_data) {
@@ -86,13 +124,11 @@ std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_dat
             if (i > 0) data_keys_str += ", ";
             data_keys_str += data_keys[i];
         }
-        print_debug_info("数据解析", "data字典键: [" + data_keys_str + "]");
-
-        // 检查datas字段
-        if (!data_field.contains("datas")) {
-            print_debug_info("数据解析", "data字典中没有datas字段", "", DebugLevel::DL_ERROR);
-            return std::make_pair(job_info_list, mapping_data);
-        }
+        // 提取分页信息（安全读取）
+        mapping_data.currentPage = get_int_safe(data_field, "currentPage", 0);
+        mapping_data.totalPage   = get_int_safe(data_field, "totalPage", 0);
+        print_debug_info("Pagination", "currentPage: " + std::to_string(mapping_data.currentPage) + 
+                         ", totalPage: " + std::to_string(mapping_data.totalPage));
 
         auto datas_list = data_field["datas"];
         print_debug_info("数据解析", "datas字段类型: " + std::string(datas_list.type_name()));
@@ -193,14 +229,26 @@ std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_dat
                 // 1. 提取主表信息
                 JobInfo job_info;
 
-                // 信息ID
-                job_info.info_id = job_data.value("id", 0);
+                // 信息ID（使用64位，避免溢出）
+                job_info.info_id = get_int64_safe(job_data, "id", static_cast<int64_t>(0));
+                if (job_info.info_id >= 10000000000000LL) { // extremely large id, dump raw job json
+                    try {
+                        print_debug_info("HugeJobId", "Encountered very large jobId: " + std::to_string(job_info.info_id));
+                        std::string raw_job = job_data.dump();
+                        print_debug_info("HugeJobId", "raw job json", raw_job);
+                    } catch (...) {
+                        print_debug_info("HugeJobId", "raw dump failed");
+                    }
+                }
 
-                // 信息名称
-                job_info.info_name = job_data.value("jobName", "");
+                // 信息名称: 优先 jobName，兼容新样式 jobTitle
+                job_info.info_name = get_string_safe(job_data, "jobName", "");
+                if (job_info.info_name.empty()) {
+                    job_info.info_name = get_string_safe(job_data, "jobTitle", "");
+                }
 
                 // 类型ID
-                job_info.type_id = job_data.value("recruitType", 0);
+                job_info.type_id = get_int_safe(job_data, "recruitType", 0);
 
                 // 类型名称映射
                 std::string type_name = "未知";
@@ -209,8 +257,8 @@ std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_dat
                 }
                 type_dict[job_info.type_id] = type_name;
 
-                // 地区ID和地区名称
-                std::string job_city = job_data.value("jobCity", "");
+                // 地区ID和地区名称: 先 jobCity，兼容新样式 city；再退而求其次 extraInfo.jobCity_var
+                std::string job_city = get_string_safe(job_data, "jobCity", "");
                 if (job_city.empty() && job_data.contains("jobCityList")) {
                     auto job_city_list = job_data["jobCityList"];
                     if (job_city_list.is_array() && !job_city_list.empty()) {
@@ -219,6 +267,12 @@ std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_dat
                             job_city = first_city.get<std::string>();
                         }
                     }
+                }
+                if (job_city.empty()) {
+                    job_city = get_string_safe(job_data, "city", "");
+                }
+                if (job_city.empty() && job_data.contains("extraInfo") && job_data["extraInfo"].is_object()) {
+                    job_city = get_string_safe(job_data["extraInfo"], "jobCity_var", "");
                 }
 
                 if (!job_city.empty() && area_dict.find(job_city) == area_dict.end()) {
@@ -229,7 +283,7 @@ std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_dat
                 job_info.area_name = job_city;
 
                 // 薪资档次ID
-                int salary_max_for_slab = job_data.value("salaryMax", 0);
+                int salary_max_for_slab = get_int_safe(job_data, "salaryMax", 0);
                 job_info.salary_level_id = 0;
                 for (size_t level_id = 0; level_id < salary_thresholds.size(); ++level_id) {
                     auto threshold = salary_thresholds[level_id];
@@ -265,9 +319,11 @@ std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_dat
                             }
                         }
 
-                        // 限制为1000字符
-                        if (job_info.requirements.length() > 1000) {
-                            job_info.requirements = job_info.requirements.substr(0, 1000);
+                        if (!job_info.requirements.empty()) {
+                            job_info.requirements = sanitize_html_to_text(job_info.requirements);
+                            if (job_info.requirements.length() > 5000) {
+                                job_info.requirements = job_info.requirements.substr(0, 5000);
+                            }
                         }
                     } catch (const std::exception& e) {
                         print_debug_info("数据解析",
@@ -278,21 +334,30 @@ std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_dat
                 }
 
                 // 薪资最小值/最大值 + 调试输出
-                int salary_min = job_data.value("salaryMin", 0);
-                int salary_max = job_data.value("salaryMax", 0);
+                int salary_min = 0;
+                int salary_max = 0;
+                bool has_range_salary = job_data.contains("salaryMin") || job_data.contains("salaryMax");
+                if (has_range_salary) {
+                    salary_min = get_int_safe(job_data, "salaryMin", 0);
+                    salary_max = get_int_safe(job_data, "salaryMax", 0);
+                } else if (job_data.contains("salary")) {
+                    // 新样式仅有单一 salary 文本，需求：最高与最低都设为0
+                    salary_min = 0;
+                    salary_max = 0;
+                }
                 job_info.salary_min = salary_min;
                 job_info.salary_max = salary_max;
                 print_debug_info("parse", "Job now: " + job_info.info_name +
                     "salaryMin=" + std::to_string(salary_min) + ", salaryMax=" + std::to_string(salary_max));
 
                 // 创建时间 + 调试输出
-                int64_t create_time = job_data.value("createTime", static_cast<int64_t>(0));
+                int64_t create_time = get_int64_safe(job_data, "createTime", static_cast<int64_t>(0));
                 job_info.create_time = timestamp_to_datetime(create_time);
                 print_debug_info("parse", "Job now: " + job_info.info_name +
                     "createTime_ms=" + std::to_string(create_time) + ", parsed=" + job_info.create_time);
 
                 // 更新时间
-                int64_t update_time = job_data.value("updateTime", create_time);
+                int64_t update_time = get_int64_safe(job_data, "updateTime", create_time);
                 job_info.update_time = timestamp_to_datetime(update_time);
 
                 // HR最后登录时间
@@ -301,7 +366,7 @@ std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_dat
                     if (job_data.contains("user") && job_data["user"].is_object()) {
                         auto user_data = job_data["user"];
                         if (user_data.contains("loginTime")) {
-                            hr_login_time = user_data.value("loginTime", static_cast<int64_t>(0));
+                            hr_login_time = get_int64_safe(user_data, "loginTime", static_cast<int64_t>(0));
                         }
                     }
                 } catch (const std::exception& e) {
@@ -311,7 +376,7 @@ std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_dat
                 }
                 job_info.hr_last_login = timestamp_to_datetime(hr_login_time);
 
-                // 公司ID与公司名称，必须来自 user.identity 列表，缺失则报错
+                // 公司ID与公司名称：优先来自 user.identity 列表；兼容新样式顶层 companyId/companyName
                 job_info.company_id = 0;
                 try {
                     if (job_data.contains("user") && job_data["user"].is_object()) {
@@ -321,10 +386,10 @@ std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_dat
                             for (const auto& identity : identity_list) {
                                 if (!identity.is_object()) continue;
                                 if (identity.contains("companyId")) {
-                                    job_info.company_id = identity.value("companyId", 0);
+                                    job_info.company_id = get_int_safe(identity, "companyId", 0);
                                 }
-                                if (identity.contains("companyName") && identity["companyName"].is_string()) {
-                                    job_info.company_name = identity["companyName"].get<std::string>();
+                                if (identity.contains("companyName")) {
+                                    job_info.company_name = get_string_safe(identity, "companyName", "");
                                 }
                                 if (job_info.company_id > 0 && !job_info.company_name.empty()) break;
                             }
@@ -338,8 +403,26 @@ std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_dat
                                      "", DebugLevel::DL_ERROR);
                 }
 
+                // 兼容：若 identity 未提供则尝试顶层 companyId/companyName（新样式）
+                if ((job_info.company_id == 0 || job_info.company_name.empty())) {
+                    int fallback_company_id = get_int_safe(job_data, "companyId", 0);
+                    std::string fallback_company_name = get_string_safe(job_data, "companyName", "");
+                    if (fallback_company_id > 0 && !fallback_company_name.empty()) {
+                        job_info.company_id = fallback_company_id;
+                        job_info.company_name = fallback_company_name;
+                    }
+                }
+
                 if (job_info.company_id == 0 || job_info.company_name.empty()) {
-                    print_debug_info("数据解析", "公司信息缺失 (identity列表未提供companyId/companyName)", "", DebugLevel::DL_ERROR);
+                    print_debug_info("数据解析", "公司信息缺失 (未提供companyId/companyName)", "", DebugLevel::DL_ERROR);
+                }
+
+                // 兼容：若无 ext.requirements，则尝试直接使用 description 作为要求（截断）
+                if (job_info.requirements.empty() && job_data.contains("description") && job_data["description"].is_string()) {
+                    job_info.requirements = sanitize_html_to_text(job_data["description"].get<std::string>());
+                    if (job_info.requirements.length() > 5000) {
+                        job_info.requirements = job_info.requirements.substr(0, 5000);
+                    }
                 }
 
                 // 标签内容列表提取（tag.title 优先）
@@ -358,7 +441,7 @@ std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_dat
                                         job_info.tag_names.push_back(tag_obj["title"].get<std::string>());
                                     }
                                     if (tag_obj.contains("id")) {
-                                        int tag_id = tag_obj.value("id", 0);
+                                        int tag_id = get_int_safe(tag_obj, "id", 0);
                                         if (tag_id > 0) job_info.tag_ids.push_back(tag_id);
                                     }
                                 }
@@ -370,7 +453,7 @@ std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_dat
                                     job_info.tag_names.push_back(tag_item["name"].get<std::string>());
                                 }
                                 if (tag_item.contains("id")) {
-                                    int tag_id = tag_item.value("id", 0);
+                                    int tag_id = get_int_safe(tag_item, "id", 0);
                                     if (tag_id > 0) job_info.tag_ids.push_back(tag_id);
                                 }
                             }
@@ -380,6 +463,12 @@ std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_dat
                     print_debug_info("数据解析",
                                      "职位" + std::to_string(i) + "的标签信息提取异常: " + std::string(e.what()),
                                      "", DebugLevel::DL_ERROR);
+                }
+
+                // 基本字段完整性校验：缺少关键字段则跳过该职位
+                if (job_info.info_id == 0 || job_info.info_name.empty()) {
+                    print_debug_info("数据解析", "跳过无效职位: 缺少id或jobName", "", DebugLevel::DL_ERROR);
+                    continue;
                 }
 
                 // 添加到主表数据列表

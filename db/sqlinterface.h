@@ -14,7 +14,7 @@ struct SalaryRange {
 };
 
 struct JobInfo {
-    int jobId;
+    long long jobId;
     QString jobName;
     int companyId;
     int recruitTypeId;
@@ -59,7 +59,7 @@ public:
 
     // Job operations
     int insertJob(const SQLNS::JobInfo &job);
-    bool insertJobTagMapping(int jobId, int tagId);
+    bool insertJobTagMapping(long long jobId, int tagId);
     QVector<SQLNS::JobInfo> queryAllJobs();
 
     // Utility

@@ -64,7 +64,7 @@ public:
     bool insertSalarySlab(int salarySlabId, int maxSalary);
 
     // === JobTagMapping ===
-    bool insertJobTagMapping(int jobId, int tagId);
+    bool insertJobTagMapping(long long jobId, int tagId);
 
     // === Query operations ===
     QVector<SQLNS::JobInfo> queryAllJobs();

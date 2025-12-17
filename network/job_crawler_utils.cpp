@@ -2,6 +2,8 @@
 #include <QDebug>
 #include <iomanip>
 #include <sstream>
+#include <regex>
+#include <algorithm>
 
 // Debug info print function
 void print_debug_info(const std::string& stage, const std::string& message,
@@ -44,4 +46,63 @@ size_t write_callback(void* contents, size_t size, size_t nmemb, std::string* re
     size_t total_size = size * nmemb;
     response->append((char*)contents, total_size);
     return total_size;
+}
+
+static inline void replace_all(std::string& s, const std::string& from, const std::string& to) {
+    if (from.empty()) return;
+    size_t start_pos = 0;
+    while ((start_pos = s.find(from, start_pos)) != std::string::npos) {
+        s.replace(start_pos, from.length(), to);
+        start_pos += to.length();
+    }
+}
+
+std::string sanitize_html_to_text(const std::string& html) {
+    try {
+        std::string s = html;
+
+        // Normalize line breaks for common block tags
+        s = std::regex_replace(s, std::regex("<br\\s*/?>", std::regex_constants::icase), "\n");
+        s = std::regex_replace(s, std::regex("</(p|div|li|h[1-6])>", std::regex_constants::icase), "\n");
+
+        // Remove all remaining tags
+        s = std::regex_replace(s, std::regex("<[^>]*>"), "");
+
+        // Decode common entities
+        replace_all(s, "&nbsp;", " ");
+        replace_all(s, "&amp;", "&");
+        replace_all(s, "&lt;", "<");
+        replace_all(s, "&gt;", ">");
+        replace_all(s, "&quot;", "\"");
+        replace_all(s, "&#39;", "'");
+
+        // Trim spaces on each line and collapse multiple blank lines
+        std::string out;
+        out.reserve(s.size());
+        bool prev_nl = false;
+        size_t i = 0;
+        while (i < s.size()) {
+            if (s[i] == '\r') { i++; continue; }
+            if (s[i] == '\n') {
+                if (!prev_nl) out.push_back('\n');
+                prev_nl = true;
+                i++;
+                continue;
+            }
+            prev_nl = false;
+            out.push_back(s[i]);
+            i++;
+        }
+
+        // Trim leading/trailing whitespace
+        auto l = out.find_first_not_of(" \t\n");
+        auto r = out.find_last_not_of(" \t\n");
+        if (l == std::string::npos) return "";
+        std::string trimmed = out.substr(l, r - l + 1);
+
+        return trimmed;
+    } catch (const std::exception& e) {
+        print_debug_info("Sanitize", std::string("Failed: ") + e.what());
+        return html;
+    }
 }

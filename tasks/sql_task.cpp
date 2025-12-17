@@ -47,11 +47,23 @@ int SqlTask::storeJobData(const ::JobInfo& crawledJob) {
     }
 
     // 3. 存储主Job数据
-    int jobId = m_sqlInterface->insertJob(sqlJob);
-    if (jobId < 0) {
+    qDebug() << "[DEBUG] [SqlTask] Insert Job:"
+             << "jobId=" << static_cast<qlonglong>(sqlJob.jobId)
+             << ", jobName=" << sqlJob.jobName
+             << ", companyId=" << sqlJob.companyId
+             << ", recruitTypeId=" << sqlJob.recruitTypeId
+             << ", cityId=" << sqlJob.cityId
+             << ", salaryMin=" << sqlJob.salaryMin
+             << ", salaryMax=" << sqlJob.salaryMax
+             << ", slabId=" << sqlJob.salarySlabId
+             << ", createTime=" << sqlJob.createTime
+             << ", updateTime=" << sqlJob.updateTime;
+    int insertRes = m_sqlInterface->insertJob(sqlJob);
+    if (insertRes < 0) {
         qDebug() << "Failed to insert job:" << crawledJob.info_id;
         return -1;
     }
+    long long jobId = sqlJob.jobId; // use full 64-bit id for subsequent mappings
     
     // 4. 建立JobTagMapping关联
     // 优先使用通过名称增量插入得到的tagId；若为空则回退使用原始tag_ids
@@ -65,7 +77,7 @@ int SqlTask::storeJobData(const ::JobInfo& crawledJob) {
         }
     }
     
-    return jobId;
+    return static_cast<int>(jobId);
 }
 
 int SqlTask::storeJobDataBatch(const std::vector<::JobInfo>& crawledJobs) {
@@ -84,7 +96,7 @@ SQLNS::JobInfo SqlTask::convertJobInfo(const ::JobInfo& crawledJob) {
     SQLNS::JobInfo sqlJob;
     
     // 基本字段转换
-    sqlJob.jobId = static_cast<int>(crawledJob.info_id);
+    sqlJob.jobId = static_cast<long long>(crawledJob.info_id);
     sqlJob.jobName = stdStringToQString(crawledJob.info_name);
     sqlJob.companyId = crawledJob.company_id;
     sqlJob.recruitTypeId = crawledJob.type_id;
@@ -184,7 +196,7 @@ bool SqlTask::insertSalarySlab(int salarySlabId, int maxSalary) {
 
 // === JobTagMapping ===
 
-bool SqlTask::insertJobTagMapping(int jobId, int tagId) {
+bool SqlTask::insertJobTagMapping(long long jobId, int tagId) {
     if (!m_sqlInterface) return false;
     return m_sqlInterface->insertJobTagMapping(jobId, tagId);
 }
