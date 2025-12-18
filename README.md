@@ -233,16 +233,9 @@ MIT License
 * Chester: 支持新JSON格式（`jobTitle`/`city`/`extraInfo`/顶层公司字段）。
 
 2025年12月16日
-* Chester: 日志统一为 `qDebug()` 英文标签；清理过时文件，明确模块边界。
-* Chester: 规范数据映射：城市按名称自增，公司从 `identity[]` 获取，标签取 `title` 去重；修复时间戳溢出。
+* Chester: 日志与输出统一为 `qDebug()` 且使用英文标签；清理过时文件并更新 CMake，模块边界（network/parser/utils/printer）明确。
+* Chester: 解析和数据映射规范化：城市按名称入库自增，公司仅从 `user.identity[]` 获取，标签取 `tag.title` 去重入库。修复了 `int64` 毫秒时间戳的相关bug。
 
-2025年12月14日
-* 程序员A: 实现网络通讯部分编写与单元测试。
-* Chester: 完成数据库单元测试与项目整合。
-
-2025年12月13日
-* Chester: 完成数据库部分初步编写。
-* 程序员A: 调整请求头；引入随机时间戳；实现JSON自动解析与映射。
 
 
 
