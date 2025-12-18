@@ -66,13 +66,6 @@ Crawler/
        └─────────────┘  └─────────────┘
 ```
 
-### 模块说明
-
-- **CrawlerTask**: 总任务协调器，编排爬取和存储流程
-- **InternetTask**: 网络爬虫任务，封装HTTP请求和数据获取
-- **SqlTask**: SQL存储任务，负责数据类型转换(::JobInfo → SQLNS::JobInfo)
-- **SQLInterface**: 底层数据库操作接口
-
 ## 数据来源与SQL对齐
 ```
 
@@ -128,62 +121,32 @@ PK: 薪资档次ID: 自设计ID
 - **sqlinterface** - 数据库操作接口
 - **sqltask** - SQL任务管理
 
-## 🚀 快速开始
 
-### 环境要求
-- Qt 6.9 或更高版本
-- CMake 3.20+
-- MinGW 64-bit 编译器
-- Windows 平台
-
-### 构建步骤
-
-1. **克隆项目**
-```bash
-git clone <repository-url>
-cd Crawler
-```
-
-2. **创建构建目录**
-```bash
-mkdir build
-cd build
-```
-
-3. **使用CMake配置**
-```bash
-cmake ..
-```
-
-4. **编译项目**
-```bash
-cmake --build . --config Debug
-```
-
-5. **运行程序**
-```bash
-./Crawler.exe
-```
 
 ## 📚 模块说明
 
+### 常量定义模块 (constants/)
+- **network_types.h** - 网络模块数据结构（`JobInfo`、`MappingData`、`DebugLevel`等）
+- **db_types.h** - 数据库模块数据结构（`SQLNS::JobInfo`、`SQLNS::SalaryRange`等）
+
 ### 网络爬虫模块 (network/)
-- **job_crawler.h** - 接口与数据结构定义（`JobInfo`/`MappingData`/`DebugLevel` 以及函数声明）
+- **job_crawler.h** - 爬虫接口函数声明（引用`constants/network_types.h`）
 - **job_crawler_main.cpp** - 爬虫主入口（聚合网络、解析与打印）
 - **job_crawler_network.cpp** - 网络请求实现（libcurl，启用SSL配置与30s超时，附带User-Agent）
-- **job_crawler_parser.cpp** - 响应数据解析（单一权威实现，支持原始JSON调试打印）
+- **job_crawler_parser.cpp** - 响应数据解析（支持多种JSON格式、原始JSON调试打印、安全类型转换）
 - **job_crawler_printer.cpp** - 数据输出（统一使用 `qDebug()`，英文标签）
-- **job_crawler_utils.cpp** - 工具函数（`print_debug_info` 使用 `qDebug()`、时间戳转换、CURL写回调）
+- **job_crawler_utils.cpp** - 工具函数（`print_debug_info`、时间戳转换、HTML清理、CURL写回调）
 
 ### 数据库模块 (db/)
-- **sqlinterface.h/cpp** - SQL执行接口
-- 支持SQLite数据库操作
-- 提供任务和结果存储
+- **sqlinterface.h/cpp** - SQL执行接口（SQLNS命名空间）
+- 支持SQLite数据库操作，采用INSERT OR IGNORE模式避免重复
+- 提供岗位、公司、城市、标签等表的增删查改
+- 实现64位jobId支持，避免整型溢出
 
 ### 任务模块 (tasks/)
-- **sqltask.h/cpp** - SQL任务定义
-- 支持任务队列管理
-- 异步任务执行
+- **crawler_task.h/cpp** - 总任务协调器，自动遍历所有招聘类型（校招/实习/社招）
+- **internet_task.h/cpp** - 网络爬取任务，封装HTTP请求与JSON解析
+- **sql_task.h/cpp** - SQL存储任务，负责数据类型转换、薪资档次计算（支持实习元/天与全职K/月）
 
 ## 🧪 测试
 
@@ -196,19 +159,6 @@ cmake --build . --config Debug
 ```bash
 cmake --build . --target test
 ```
-
-## 🔧 配置
-
-### CMakeLists.txt 主要配置
-- Qt 6 组件支持 (Core, Gui, Widgets, Sql)
-- 包含路径配置
-- libcurl 和 nlohmann-json 集成
-
-### 日志与调试
-- 统一使用 `qDebug()` 输出，所有标签为英文（例如：`[DEBUG]`, `Timestamp`, `DataPrint`）。
-- 解析阶段支持原始JSON全文调试输出，便于定位字段差异。
-- 时间戳按 `int64`（毫秒）解析并格式化，避免32位溢出。
-
 
 ## 📄 许可证
 
