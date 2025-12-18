@@ -222,17 +222,26 @@ MIT License
 ## 更新日志
 
 2025年12月18日
-* Chester: 创建 `constants/` 文件夹存放数据结构定义（`network_types.h`、`db_types.h`），提升代码可维护性；删除 `SalarySlab` 表及相关代码，薪资档次完全由代码逻辑定义。
-* Chester: 新增实习（`recruitType=2`）独立薪资档次计算（元/天 vs 校招/社招的K/月）；`CrawlerTask` 简化为默认自动遍历所有招聘类型，删除 `crawlOnly`/`storeOnly` 等冗余方法。
+* Chester: 创建 `constants/` 文件夹统一数据结构定义；删除 `SalarySlab` 表，薪资档次由代码逻辑定义。
+* Chester: 实习薪资独立计算（元/天）；`CrawlerTask` 自动遍历所有招聘类型。
 
 2025年12月17日
-* Chester: 新增 `sanitize_html_to_text()` 清理 `requirements` 中的HTML标签；`requirements` 字段限制从1000字符扩容到5000字符。
-* Chester: 支持另一种JSON格式兼容（`jobTitle`、`city`、`extraInfo.jobCity_var`、顶层`companyId/companyName`），单一 `salary` 字段时设置 `salaryMin/Max=0`。
+* Chester: 新增HTML标签清理；`requirements` 字段扩容至5000字符。
+* Chester: 支持新JSON格式（`jobTitle`/`city`/`extraInfo`/顶层公司字段）。
 
 2025年12月16日
-* Chester: 日志与输出统一为 `qDebug()` 且使用英文标签；清理过时文件并更新 CMake，模块边界（network/parser/utils/printer）明确。
-* Chester: 解析和数据映射规范化：城市按名称入库自增，公司仅从 `user.identity[]` 获取，标签取 `tag.title` 去重入库。修复了 `int64` 毫秒时间戳的相关bug。
+* Chester: 日志统一为 `qDebug()` 英文标签；清理过时文件，明确模块边界。
+* Chester: 规范数据映射：城市按名称自增，公司从 `identity[]` 获取，标签取 `title` 去重；修复时间戳溢出。
 
+2025年12月14日
+* 程序员A: 实现了网络通讯部分的大部分编写与单元测试。
+* Chester: 完成了数据库部分的单元测试。
+* Chester: 完成了项目整合。
+
+2025年12月13日
+* Chester: 完成了数据库部分的初步编写。
+* 程序员A: 调整了请求头，引入随机时间戳机制，实现JSON自动解析并存储到变量。
+* 程序员A: 建立JSON字段与变量的映射关系，完成数据预处理。
 
 
 
