@@ -19,36 +19,21 @@ public:
     CrawlerTask(SQLInterface *sqlInterface);
     
     /**
-     * @brief 爬取并存储单页数据
+     * @brief 爬取并存储单页数据（自动遍历校招/实习/社招）
      * @param pageNo 页码
      * @param pageSize 每页数量
-     * @return 成功存储的数量
+     * @return 成功存储的总数量（所有类型）
      */
     int crawlAndStore(int pageNo, int pageSize);
     
     /**
-     * @brief 爬取并存储多页数据
+     * @brief 爬取并存储多页数据（自动遍历校招/实习/社招）
      * @param startPage 起始页
      * @param endPage 结束页
      * @param pageSize 每页数量
-     * @return 成功存储的数量
+     * @return 成功存储的总数量（所有类型）
      */
     int crawlAndStoreMultiPage(int startPage, int endPage, int pageSize);
-    
-    /**
-     * @brief 仅爬取数据（不存储）
-     * @param pageNo 页码
-     * @param pageSize 每页数量
-     * @return JobInfo列表和映射数据
-     */
-    std::pair<std::vector<JobInfo>, MappingData> crawlOnly(int pageNo, int pageSize);
-    
-    /**
-     * @brief 仅存储数据（不爬取）
-     * @param jobs 已爬取的JobInfo列表
-     * @return 成功存储的数量
-     */
-    int storeOnly(const std::vector<JobInfo>& jobs);
     
 private:
     InternetTask m_internetTask;  // 网络爬虫任务

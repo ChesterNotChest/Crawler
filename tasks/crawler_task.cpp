@@ -8,49 +8,51 @@ CrawlerTask::CrawlerTask(SQLInterface *sqlInterface)
 }
 
 int CrawlerTask::crawlAndStore(int pageNo, int pageSize) {
-    qDebug() << "[CrawlerTask] 开始爬取并存储第" << pageNo << "页数据...";
+    qDebug() << "[CrawlerTask] 开始爬取并存储第" << pageNo << "页数据（校招/实习/社招）...";
     
-    // 步骤1: 调用InternetTask爬取数据
-    auto [jobs, mapping] = m_internetTask.fetchJobData(pageNo, pageSize);
+    int totalSuccess = 0;
+    const char* typeNames[] = {"校招", "实习", "社招"};
     
-    if (jobs.empty()) {
-        qDebug() << "[CrawlerTask] 警告: 未爬取到任何数据";
-        return 0;
+    // 遍历三种招聘类型: 1=校招, 2=实习, 3=社招
+    for (int recruitType = 1; recruitType <= 3; ++recruitType) {
+        qDebug() << "[CrawlerTask] --> 正在爬取" << typeNames[recruitType-1] << "(recruitType=" << recruitType << ")...";
+        
+        auto [jobs, mapping] = m_internetTask.fetchJobData(pageNo, pageSize, recruitType);
+        
+        if (!jobs.empty()) {
+            int count = m_sqlTask.storeJobDataBatch(jobs);
+            totalSuccess += count;
+            qDebug() << "[CrawlerTask] --> " << typeNames[recruitType-1] << "存储成功" << count << "条";
+        } else {
+            qDebug() << "[CrawlerTask] --> " << typeNames[recruitType-1] << "未爬取到数据";
+        }
     }
     
-    // 步骤2: 调用SqlTask存储数据
-    qDebug() << "[CrawlerTask] 爬取完成，开始存储" << jobs.size() << "条数据...";
-    int successCount = m_sqlTask.storeJobDataBatch(jobs);
-    
-    qDebug() << "[CrawlerTask] 存储完成，成功" << successCount << "条";
-    return successCount;
+    qDebug() << "[CrawlerTask] 第" << pageNo << "页所有类型存储完成，总计" << totalSuccess << "条";
+    return totalSuccess;
 }
 
 int CrawlerTask::crawlAndStoreMultiPage(int startPage, int endPage, int pageSize) {
-    qDebug() << "[CrawlerTask] 开始批量爬取并存储，页码范围:" << startPage << "-" << endPage;
+    qDebug() << "[CrawlerTask] 开始批量爬取并存储，页码范围:" << startPage << "-" << endPage << "（校招/实习/社招）...";
     
-    // 步骤1: 调用InternetTask批量爬取
-    auto [jobs, mapping] = m_internetTask.fetchJobDataMultiPage(startPage, endPage, pageSize);
+    int totalSuccess = 0;
+    const char* typeNames[] = {"校招", "实习", "社招"};
     
-    if (jobs.empty()) {
-        qDebug() << "[CrawlerTask] 警告: 未爬取到任何数据";
-        return 0;
+    // 遍历三种招聘类型: 1=校招, 2=实习, 3=社招
+    for (int recruitType = 1; recruitType <= 3; ++recruitType) {
+        qDebug() << "[CrawlerTask] --> 正在批量爬取" << typeNames[recruitType-1] << "(recruitType=" << recruitType << ")...";
+        
+        auto [jobs, mapping] = m_internetTask.fetchJobDataMultiPage(startPage, endPage, pageSize, recruitType);
+        
+        if (!jobs.empty()) {
+            int count = m_sqlTask.storeJobDataBatch(jobs);
+            totalSuccess += count;
+            qDebug() << "[CrawlerTask] --> " << typeNames[recruitType-1] << "批量存储成功" << count << "条";
+        } else {
+            qDebug() << "[CrawlerTask] --> " << typeNames[recruitType-1] << "未爬取到数据";
+        }
     }
     
-    // 步骤2: 调用SqlTask批量存储
-    qDebug() << "[CrawlerTask] 批量爬取完成，开始存储" << jobs.size() << "条数据...";
-    int successCount = m_sqlTask.storeJobDataBatch(jobs);
-    
-    qDebug() << "[CrawlerTask] 批量存储完成，成功" << successCount << "条";
-    return successCount;
-}
-
-std::pair<std::vector<JobInfo>, MappingData> CrawlerTask::crawlOnly(int pageNo, int pageSize) {
-    qDebug() << "[CrawlerTask] 仅爬取模式：第" << pageNo << "页";
-    return m_internetTask.fetchJobData(pageNo, pageSize);
-}
-
-int CrawlerTask::storeOnly(const std::vector<JobInfo>& jobs) {
-    qDebug() << "[CrawlerTask] 仅存储模式：" << jobs.size() << "条数据";
-    return m_sqlTask.storeJobDataBatch(jobs);
+    qDebug() << "[CrawlerTask] 批量存储完成，总计" << totalSuccess << "条";
+    return totalSuccess;
 }

@@ -20,6 +20,12 @@ set(NLOHMANN_JSON_DIR "${THIRD_PARTY_DIR}/nlohmann-json-develop")
 # Include db and tasks directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
+# 常量定义头文件
+set(CONSTANTS_HEADERS
+        constants/network_types.h
+        constants/db_types.h
+)
+
 # 主应用源文件
 set(PROJECT_SOURCES
         main.cpp
@@ -63,6 +69,7 @@ set(TEST_SOURCES
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(Crawler
         MANUAL_FINALIZATION
+        ${CONSTANTS_HEADERS}
         ${PROJECT_SOURCES}
         ${NETWORK_SOURCES}
         ${TEST_SOURCES}
@@ -74,6 +81,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
 else()
     if(ANDROID)
         add_library(Crawler SHARED
+            ${CONSTANTS_HEADERS}
             ${PROJECT_SOURCES}
             ${NETWORK_SOURCES}
             ${TEST_SOURCES}
@@ -82,6 +90,7 @@ else()
 #    set(ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
     else()
         add_executable(Crawler
+            ${CONSTANTS_HEADERS}
             ${PROJECT_SOURCES}
             ${NETWORK_SOURCES}
             ${TEST_SOURCES}

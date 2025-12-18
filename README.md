@@ -220,6 +220,63 @@ MIT License
 如有问题，请提交 Issue 或联系项目维护者。
 
 ## 更新日志
+
+2025年12月18日
+* Chester: 创建 `constants/` 文件夹存放数据结构定义（`network_types.h`、`db_types.h`），提升代码可维护性；删除 `SalarySlab` 表及相关代码，薪资档次完全由代码逻辑定义。
+* Chester: 新增实习（`recruitType=2`）独立薪资档次计算（元/天 vs 校招/社招的K/月）；`CrawlerTask` 简化为默认自动遍历所有招聘类型，删除 `crawlOnly`/`storeOnly` 等冗余方法。
+
+2025年12月17日
+* Chester: 新增 `sanitize_html_to_text()` 清理 `requirements` 中的HTML标签；`requirements` 字段限制从1000字符扩容到5000字符。
+* Chester: 支持另一种JSON格式兼容（`jobTitle`、`city`、`extraInfo.jobCity_var`、顶层`companyId/companyName`），单一 `salary` 字段时设置 `salaryMin/Max=0`。
+
 2025年12月16日
 * Chester: 日志与输出统一为 `qDebug()` 且使用英文标签；清理过时文件并更新 CMake，模块边界（network/parser/utils/printer）明确。
 * Chester: 解析和数据映射规范化：城市按名称入库自增，公司仅从 `user.identity[]` 获取，标签取 `tag.title` 去重入库。修复了 `int64` 毫秒时间戳的相关bug。
+
+
+
+
+
+## 任务指南 FaIL
+1. 第一步
+queryAllJobs()
+
+=====  QVector 等价于 高级数组
+-Job1 {}
+-Job2 {}
+-Job3 {}
+-Job4 {}
+....
+=====
+
+
+2. 第二步
+=====  QVector 等价于 高级数组
+-Job1 {}
+-Job2 {}
+-Job3 {}
+-Job4 {}
+....
+===== 初始
+
+↓
+
+==== QVector 
+       ====== QVector (包含20条)
+       -Job1 {}
+       -Job2 {}
+       -Job3 {}
+       -Job4 {}
+       ....
+       =====
+       ====== QVector (包含20条)
+       -Job21 {}
+       -Job22 {}
+       -Job23 {}
+       -Job24 {}
+       ....
+       =====
+==== 分页后
+
+3. 第三步
+打印上面的内容

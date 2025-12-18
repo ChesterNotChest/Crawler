@@ -58,11 +58,6 @@ public:
     // JobTag - tagId auto-increment
     int insertTag(const QString &tagName);
 
-    // === 自定义ID部分 (需要传入ID) ===
-    
-    // SalarySlab - salarySlabId required (自设计ID)
-    bool insertSalarySlab(int salarySlabId, int maxSalary);
-
     // === JobTagMapping ===
     bool insertJobTagMapping(long long jobId, int tagId);
 
@@ -80,9 +75,13 @@ private:
     SQLNS::JobInfo convertJobInfo(const ::JobInfo& crawledJob);
     
     /**
-     * @brief 计算薪资档次ID
+     * @brief 计算薪资档次ID（根据recruitType区分实习的元/天 vs 校招社招的K/月）
+     * @param salaryMin 最低薪资
+     * @param salaryMax 最高薪资
+     * @param recruitType 招聘类型 (1=校招, 2=实习, 3=社招)
+     * @return 薪资档次ID (1-6 or 0 for no salary)
      */
-    int calculateSalarySlabId(double salaryMin, double salaryMax);
+    int calculateSalarySlabId(double salaryMin, double salaryMax, int recruitType);
     
     /**
      * @brief std::string → QString 转换

@@ -5,11 +5,11 @@ InternetTask::InternetTask() {
     // 构造函数，未来可以在这里初始化配置
 }
 
-std::pair<std::vector<JobInfo>, MappingData> InternetTask::fetchJobData(int pageNo, int pageSize) {
-    std::cout << "[InternetTask] 开始爬取第 " << pageNo << " 页数据，每页 " << pageSize << " 条..." << std::endl;
+std::pair<std::vector<JobInfo>, MappingData> InternetTask::fetchJobData(int pageNo, int pageSize, int recruitType) {
+    std::cout << "[InternetTask] 开始爬取第 " << pageNo << " 页数据，每页 " << pageSize << " 条，招聘类型 " << recruitType << "..." << std::endl;
     
     // 调用爬虫主函数
-    auto result = job_crawler_main(pageNo, pageSize, DEFAULT_RECRUIT_TYPE);
+    auto result = job_crawler_main(pageNo, pageSize, recruitType);
     
     std::cout << "[InternetTask] 爬取完成，获得 " << result.first.size() << " 条职位数据" << std::endl;
     
@@ -17,15 +17,15 @@ std::pair<std::vector<JobInfo>, MappingData> InternetTask::fetchJobData(int page
 }
 
 std::pair<std::vector<JobInfo>, MappingData> InternetTask::fetchJobDataMultiPage(
-    int startPage, int endPage, int pageSize) {
+    int startPage, int endPage, int pageSize, int recruitType) {
     
-    std::cout << "[InternetTask] 开始批量爬取，页码范围: " << startPage << " - " << endPage << std::endl;
+    std::cout << "[InternetTask] 开始批量爬取，页码范围: " << startPage << " - " << endPage << "，招聘类型 " << recruitType << std::endl;
     
     std::vector<JobInfo> allJobs;
     MappingData mergedMapping;
     
     for (int page = startPage; page <= endPage; ++page) {
-        auto [jobs, mapping] = fetchJobData(page, pageSize);
+        auto [jobs, mapping] = fetchJobData(page, pageSize, recruitType);
         
         // 合并JobInfo
         allJobs.insert(allJobs.end(), jobs.begin(), jobs.end());

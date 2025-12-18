@@ -107,8 +107,8 @@ SQLNS::JobInfo SqlTask::convertJobInfo(const ::JobInfo& crawledJob) {
     sqlJob.salaryMin = crawledJob.salary_min;
     sqlJob.salaryMax = crawledJob.salary_max;
     
-    // 薪资档次ID计算
-    sqlJob.salarySlabId = calculateSalarySlabId(crawledJob.salary_min, crawledJob.salary_max);
+    // 薪资档次ID计算（传入recruitType以区分实习的元/天单位）
+    sqlJob.salarySlabId = calculateSalarySlabId(crawledJob.salary_min, crawledJob.salary_max, crawledJob.type_id);
     
     // 时间字段转换
     sqlJob.createTime = stdStringToQString(crawledJob.create_time);
@@ -123,10 +123,22 @@ SQLNS::JobInfo SqlTask::convertJobInfo(const ::JobInfo& crawledJob) {
     return sqlJob;
 }
 
-int SqlTask::calculateSalarySlabId(double salaryMin, double salaryMax) {
-    // 根据最高薪资确定档次 (单位: K)
+int SqlTask::calculateSalarySlabId(double salaryMin, double salaryMax, int recruitType) {
     int salary = static_cast<int>(std::max(salaryMin, salaryMax));
     
+    // recruitType=2 为实习，薪资单位是 元/天（3位数）
+    if (recruitType == 2) {
+        // 实习薪资档次（元/天）
+        if (salary == 0) return 0;         // 无薪资信息
+        else if (salary <= 100) return 1;  // ≤100元/天
+        else if (salary <= 200) return 2;  // 100-200元/天
+        else if (salary <= 300) return 3;  // 200-300元/天
+        else if (salary <= 400) return 4;  // 300-400元/天
+        else if (salary <= 600) return 5;  // 400-600元/天
+        else return 6;                     // >600元/天
+    }
+    
+    // 校招/社招：薪资单位是 K/月
     if (salary <= 15) return 1;      // ≤15k
     else if (salary <= 25) return 2; // 15k-25k
     else if (salary <= 40) return 3; // 25k-40k
@@ -183,15 +195,6 @@ int SqlTask::insertTag(const QString &tagName) {
     
     // tagId 自增，不传入ID
     return m_sqlInterface->insertTag(tagName);
-}
-
-// === 自定义ID部分 (需要传入ID) ===
-
-bool SqlTask::insertSalarySlab(int salarySlabId, int maxSalary) {
-    if (!m_sqlInterface) return false;
-    
-    // salarySlabId 自设计，传入ID
-    return m_sqlInterface->insertSalarySlab(salarySlabId, maxSalary);
 }
 
 // === JobTagMapping ===

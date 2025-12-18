@@ -132,12 +132,8 @@ void test_sql_task_unit() {
     // 测试insertTag (自增ID)
     int tagId = sqlTask.insertTag("单元测试");
     qDebug() << "✓ insertTag (自增ID): tagId =" << tagId;
-    
-    // 测试insertSalarySlab (自定义ID)
-    bool slabOk = sqlTask.insertSalarySlab(10, 50);
-    qDebug() << "✓ insertSalarySlab (自定义ID):" << (slabOk ? "成功" : "失败");
-    
-    // ========== 场景5: 数据一致性验证 ==========
+
+    // === 验证部分 ===
     qDebug() << "\n[场景5] 数据一致性验证";
     
     bool consistent = true;
@@ -148,8 +144,8 @@ void test_sql_task_unit() {
             consistent = false;
         }
         
-        // 验证薪资档次ID是否合理 (1-6)
-        if (dbJob.salarySlabId < 1 || dbJob.salarySlabId > 6) {
+        // 验证薪资档次ID是否合理 (0-6, 0表示无薪资)
+        if (dbJob.salarySlabId < 0 || dbJob.salarySlabId > 6) {
             qDebug() << "❌ 薪资档次ID异常:" << dbJob.salarySlabId;
             consistent = false;
         }

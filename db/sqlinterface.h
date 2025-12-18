@@ -5,31 +5,8 @@
 #include <QVector>
 #include <QMap>
 
-// SQL数据库模块命名空间
-namespace SQLNS {
-
-struct SalaryRange {
-    int minSalary;
-    int maxSalary;
-};
-
-struct JobInfo {
-    long long jobId;
-    QString jobName;
-    int companyId;
-    int recruitTypeId;
-    int cityId;
-    QString requirements;
-    double salaryMin;
-    double salaryMax;
-    int salarySlabId;
-    QString createTime;
-    QString updateTime;
-    QString hrLastLoginTime;
-    QVector<int> tagIds;
-};
-
-} // namespace SQLNS
+// 数据结构定义
+#include "constants/db_types.h"
 
 class SQLInterface {
 public:
@@ -54,16 +31,10 @@ public:
     // Tag operations
     int insertTag(const QString &tagName);
 
-    // Salary Slab operations
-    bool insertSalarySlab(int slabId, int maxSalary);
-
     // Job operations
     int insertJob(const SQLNS::JobInfo &job);
     bool insertJobTagMapping(long long jobId, int tagId);
     QVector<SQLNS::JobInfo> queryAllJobs();
-
-    // Utility
-    SQLNS::SalaryRange getSalarySlabRange(int slabId);
 
 private:
     bool openSqliteConnection(const QString &dbFilePath);

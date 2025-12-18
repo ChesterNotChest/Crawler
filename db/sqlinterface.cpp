@@ -95,15 +95,6 @@ bool SQLInterface::createAllTables() {
 		return false;
 	}
 
-	// SalarySlab (薪资档次)
-	if (!q.exec(
-		"CREATE TABLE IF NOT EXISTS SalarySlab ("
-		" salarySlabId INTEGER PRIMARY KEY,"
-		" maxSalary INTEGER NOT NULL"
-		")")) {
-		qDebug() << "Create SalarySlab failed:" << q.lastError().text();
-		return false;
-	}
 
 	// Job (主表)
 	if (!q.exec(
@@ -236,17 +227,6 @@ int SQLInterface::insertTag(const QString &tagName) {
 	return -1;
 }
 
-bool SQLInterface::insertSalarySlab(int slabId, int maxSalary) {
-	if (!isConnected()) return false;
-	const QString connName = QStringLiteral("crawler_conn");
-	QSqlDatabase db = QSqlDatabase::database(connName);
-	QSqlQuery q(db);
-	q.prepare("INSERT OR IGNORE INTO SalarySlab(salarySlabId, maxSalary) VALUES(:id, :max)");
-	q.bindValue(":id", slabId);
-	q.bindValue(":max", maxSalary);
-	return q.exec();
-}
-
 int SQLInterface::insertJob(const SQLNS::JobInfo &job) {
 	if (!isConnected()) return -1;
 	const QString connName = QStringLiteral("crawler_conn");
@@ -329,18 +309,4 @@ QVector<SQLNS::JobInfo> SQLInterface::queryAllJobs() {
 		jobs.append(job);
 	}
 	return jobs;
-}
-
-SQLNS::SalaryRange SQLInterface::getSalarySlabRange(int slabId) {
-	SQLNS::SalaryRange range{0, 0};
-	if (!isConnected()) return range;
-	const QString connName = QStringLiteral("crawler_conn");
-	QSqlDatabase db = QSqlDatabase::database(connName);
-	QSqlQuery q(db);
-	q.prepare("SELECT maxSalary FROM SalarySlab WHERE salarySlabId = :id");
-	q.bindValue(":id", slabId);
-	if (q.exec() && q.next()) {
-		range.maxSalary = q.value(0).toInt();
-	}
-	return range;
 }
