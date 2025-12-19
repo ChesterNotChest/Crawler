@@ -22,6 +22,13 @@ public:
     // Schema creation (replaces old ensureDatabaseAndTable)
     bool createAllTables();
 
+    // Source operations
+    int insertSource(const SQLNS::Source &source);
+    SQLNS::Source querySourceById(int sourceId);
+    SQLNS::Source querySourceByCode(const QString &sourceCode);
+    QVector<SQLNS::Source> queryAllSources();
+    QVector<SQLNS::Source> queryEnabledSources();
+
     // Company operations (companyId required - general ID)
     int insertCompany(int companyId, const QString &companyName);
 

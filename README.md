@@ -10,6 +10,36 @@
 - **数据库支持** - SQLite数据库集成，支持任务和结果存储
 - **并行处理** - 多任务并行爬取，提高效率
 - **跨平台** - 支持Windows、Linux、macOS等平台
+- **配置管理** - config.json统一管理敏感数据（Cookie等）
+
+## 🔐 Cookie管理方案
+
+**推荐方式：使用config.json配置文件**
+
+Qt WebView在Windows桌面平台依赖Qt WebEngine，而WebEngine不支持MinGW（仅MSVC），因此采用配置文件方案。
+
+### 使用步骤：
+
+1. **从浏览器获取Cookie**
+   - 访问BOSS直聘网站并登录
+   - 打开开发者工具（F12）→ Application/存储 → Cookies
+   - 复制完整Cookie字符串
+
+2. **编辑config.json文件**
+```json
+{
+  "zhipin": {
+    "cookie": "你的完整Cookie字符串（包含__zp_stoken__等）",
+    "city": "101010100",
+    "updateTime": "2025-12-19"
+  }
+}
+```
+
+3. **程序自动使用**
+   - 程序启动时自动加载config.json
+   - API请求中自动注入Cookie
+   - 无需修改代码
 
 ## 🗂️ 项目结构
 
@@ -72,6 +102,7 @@ Crawler/
 PK: 岗位ID (int) data.id
 岗位名称 (char[]) data.jobName
 SK: 类型ID (int) data.recruitType
+SK: 来源ID (int) (TODO)
 SK: 地区ID (int): 自增ID（见下）
 SK: TagID (int): 自增ID（见下）
 SK: 薪资档次ID (int): 自设计ID（见下）

@@ -45,4 +45,46 @@ void test_sql_task_unit();
  */
 void test_crawler_task_integration();
 
+/**
+ * @brief BOSS直聘Cookie自动获取测试
+ * 测试功能: 
+ *   1. 访问主页面获取基础Cookie
+ *   2. 展示Cookie获取的局限性
+ *   3. 提供实用建议
+ */
+void test_zhipin_cookie_fetch();
+
+/**
+ * @brief QtWebEngine Cookie完整获取测试
+ * 测试功能:
+ *   1. 使用真实浏览器环境加载页面
+ *   2. 等待JavaScript执行完成
+ *   3. 提取所有Cookie（包括动态生成的__zp_stoken__）
+ * 要求: 需要安装Qt WebEngine模块
+ */
+// 已移除Qt WebView相关测试（Windows桌面需Qt WebEngine，MinGW不支持）
+
+/**
+ * @brief WebView2 Cookie 提取测试（Windows专用）
+ * 功能:
+ *   1. 使用WebView2加载页面
+ *   2. 执行JavaScript读取document.cookie
+ *   3. 输出Cookie信息
+ */
+
+/**
+ * @brief WebView2 WRL Cookie 提取测试（推荐新架构）
+ * 功能:
+ *   1. 使用WebView2 WRL模式加载页面
+ *   2. 异步信号获取Cookie
+ *   3. 输出Cookie信息
+ */
+// WebView2 WRL Cookie 提取测试（推荐新架构）
+// 功能:
+//   1. 使用WebView2 WRL模式加载页面
+//   2. 异步信号获取Cookie
+//   3. 输出Cookie信息
+void test_webview2_cookie_wrl();
+
+
 #endif // TEST_H

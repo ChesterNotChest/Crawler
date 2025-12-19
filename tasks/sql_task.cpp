@@ -1,6 +1,7 @@
 #include "sql_task.h"
 #include <QDebug>
 #include <unordered_set>
+#include <algorithm>
 
 SqlTask::SqlTask(SQLInterface *sqlInterface)
     : m_sqlInterface(sqlInterface) {}
@@ -90,6 +91,75 @@ int SqlTask::storeJobDataBatch(const std::vector<::JobInfo>& crawledJobs) {
     return successCount;
 }
 
+int SqlTask::storeJobDataWithSource(const ::JobInfo& crawledJob, int sourceId) {
+    if (!m_sqlInterface) {
+        qDebug() << "Error: SQLInterface is null";
+        return -1;
+    }
+    
+    // 1. 转换数据类型
+    SQLNS::JobInfo sqlJob = convertJobInfo(crawledJob);
+    sqlJob.sourceId = sourceId; // 设置sourceId
+    
+    // 2. 依赖数据处理（与storeJobData相同）
+    if (crawledJob.company_id > 0 && !crawledJob.company_name.empty()) {
+        insertCompany(crawledJob.company_id, stdStringToQString(crawledJob.company_name));
+    }
+
+    QVector<int> insertedTagIds;
+    std::unordered_set<std::string> seenTagNames;
+    for (const auto& tagNameStr : crawledJob.tag_names) {
+        if (tagNameStr.empty()) continue;
+        if (seenTagNames.insert(tagNameStr).second) {
+            int tagId = insertTag(stdStringToQString(tagNameStr));
+            if (tagId > 0) {
+                insertedTagIds.append(tagId);
+            }
+        }
+    }
+
+    if (!crawledJob.area_name.empty()) {
+        int cityId = insertCity(stdStringToQString(crawledJob.area_name));
+        if (cityId > 0) {
+            sqlJob.cityId = cityId;
+        }
+    }
+
+    // 3. 存储主Job数据
+    qDebug() << "[DEBUG] [SqlTask] Insert Job with sourceId=" << sourceId
+             << ", jobId=" << static_cast<qlonglong>(sqlJob.jobId)
+             << ", jobName=" << sqlJob.jobName;
+    int insertRes = m_sqlInterface->insertJob(sqlJob);
+    if (insertRes < 0) {
+        qDebug() << "Failed to insert job:" << crawledJob.info_id;
+        return -1;
+    }
+    long long jobId = sqlJob.jobId;
+    
+    // 4. 建立JobTagMapping关联
+    if (!insertedTagIds.isEmpty()) {
+        for (int tagId : insertedTagIds) {
+            insertJobTagMapping(jobId, tagId);
+        }
+    } else {
+        for (int tagId : crawledJob.tag_ids) {
+            insertJobTagMapping(jobId, tagId);
+        }
+    }
+    
+    return static_cast<int>(jobId);
+}
+
+int SqlTask::storeJobDataBatchWithSource(const std::vector<::JobInfo>& crawledJobs, int sourceId) {
+    int successCount = 0;
+    for (const auto& job : crawledJobs) {
+        if (storeJobDataWithSource(job, sourceId) >= 0) {
+            successCount++;
+        }
+    }
+    return successCount;
+}
+
 // ========== 内部转换方法实现 ==========
 
 SQLNS::JobInfo SqlTask::convertJobInfo(const ::JobInfo& crawledJob) {
@@ -101,6 +171,7 @@ SQLNS::JobInfo SqlTask::convertJobInfo(const ::JobInfo& crawledJob) {
     sqlJob.companyId = crawledJob.company_id;
     sqlJob.recruitTypeId = crawledJob.type_id;
     sqlJob.cityId = crawledJob.area_id;
+        sqlJob.sourceId = 0; // 默认值，需要在存储前设置
     sqlJob.requirements = stdStringToQString(crawledJob.requirements);
     
     // 薪资转换
@@ -124,7 +195,7 @@ SQLNS::JobInfo SqlTask::convertJobInfo(const ::JobInfo& crawledJob) {
 }
 
 int SqlTask::calculateSalarySlabId(double salaryMin, double salaryMax, int recruitType) {
-    int salary = static_cast<int>(std::max(salaryMin, salaryMax));
+    int salary = static_cast<int>(max(salaryMin, salaryMax));
     
     // recruitType=2 为实习，薪资单位是 元/天（3位数）
     if (recruitType == 2) {

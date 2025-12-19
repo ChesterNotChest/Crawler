@@ -15,6 +15,7 @@
 // 调试信息级别
 enum class DebugLevel {
     DL_DEBUG,    // 调试信息
+    DL_WARN,     // 警告信息
     DL_ERROR     // 错误信息
 };
 

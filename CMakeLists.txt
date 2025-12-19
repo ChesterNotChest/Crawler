@@ -16,14 +16,28 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets Sql Network)
 set(THIRD_PARTY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include")
 set(CURL_DIR "${THIRD_PARTY_DIR}/curl-8.17.0_5-win64-mingw")
 set(NLOHMANN_JSON_DIR "${THIRD_PARTY_DIR}/nlohmann-json-develop")
+# WebView2 SDK（可选，Windows专用，MinGW不链接静态库，仅用于头文件）
+set(WEBVIEW2_SDK_DIR "${THIRD_PARTY_DIR}/WebView2SDK")
+set(WEBVIEW2_INCLUDE_DIR "${WEBVIEW2_SDK_DIR}/build/native/include")
+set(WEBVIEW2_RUNTIME_DLL "${WEBVIEW2_SDK_DIR}/runtimes/win-x64/native/WebView2Loader.dll")
 
 # Include db and tasks directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+if (EXISTS "${WEBVIEW2_INCLUDE_DIR}")
+    message(STATUS "WebView2 headers found: ${WEBVIEW2_INCLUDE_DIR}")
+    include_directories(${WEBVIEW2_INCLUDE_DIR})
+endif()
 
 # 常量定义头文件
 set(CONSTANTS_HEADERS
         constants/network_types.h
         constants/db_types.h
+)
+
+# 配置管理模块
+set(CONFIG_SOURCES
+        config/config_manager.h
+        config/config_manager.cpp
 )
 
 # 主应用源文件
@@ -45,11 +59,18 @@ set(PROJECT_SOURCES
 # 网络爬虫源文件
 set(NETWORK_SOURCES
         network/job_crawler.h
-        network/job_crawler_main.cpp
         network/job_crawler_parser.cpp
         network/job_crawler_network.cpp
         network/job_crawler_utils.cpp
         network/job_crawler_printer.cpp
+        network/crawl_nowcode.h
+        network/crawl_nowcode.cpp
+        network/crawl_zhipin.h
+        network/crawl_zhipin.cpp
+        # network/webview2_browser.h (已废弃)
+        # network/webview2_browser.cpp (已废弃)
+        network/webview2_browser_wrl.h
+        network/webview2_browser_wrl.cpp
 )
 
 # 测试源文件
@@ -60,20 +81,32 @@ set(TEST_SOURCES
         test/test_sql_task.cpp
         # 集成测试
         test/test_crawler_task.cpp
+        # Cookie获取测试
+        # test/test_webview2_cookie.cpp (已废弃)
+        test/test_webview2_cookie_wrl.cpp
         # [Deprecated] 以下测试已被新架构替代，可删除
         # test/test_sql.cpp
         # test/test_job_crawler.cpp
         # test/test_integration.cpp
 )
 
+# （注意：复制WebView2运行时DLL的命令需要在目标创建之后再执行）
+
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(Crawler
         MANUAL_FINALIZATION
         ${CONSTANTS_HEADERS}
+        ${CONFIG_SOURCES}
         ${PROJECT_SOURCES}
         ${NETWORK_SOURCES}
         ${TEST_SOURCES}
     )
+
+    # WebView2 静态库目录和链接（仅Qt6下）
+    target_link_directories(Crawler PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/WebView2SDK/build/native/x64
+    )
+    target_link_libraries(Crawler PRIVATE WebView2LoaderStatic)
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET Crawler APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
 #                 ${CMAKE_CURRENT_SOURCE_DIR}/android)
@@ -102,6 +135,8 @@ endif()
 target_include_directories(Crawler PRIVATE
     ${NLOHMANN_JSON_DIR}/include
     ${CURL_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/wil/include
+    "C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/winrt"
 )
 
 # ==================== 链接库 ====================
@@ -127,7 +162,22 @@ if(WIN32)
         crypt32
         normaliz
         advapi32
+        ole32
+        oleaut32
+        uuid
     )
+
+    # 复制WebView2运行时DLL到可执行目录（如果存在）。
+    # 注意：仅复制DLL，MinGW不直接链接MSVC格式的 .lib 文件。
+    if (EXISTS "${WEBVIEW2_RUNTIME_DLL}")
+        add_custom_command(TARGET Crawler POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E echo "Post-build: copying WebView2Loader.dll"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WEBVIEW2_RUNTIME_DLL}" "$<TARGET_FILE_DIR:Crawler>"
+            VERBATIM
+        )
+    else()
+        message(STATUS "WebView2 runtime DLL not found at: ${WEBVIEW2_RUNTIME_DLL}")
+    endif()
 
     # 检查CURL库文件是否存在
     if(EXISTS "${CURL_DIR}/lib/libcurl.dll.a")
@@ -145,6 +195,16 @@ if(WIN32)
                 COMMENT "Copying libcurl-x64.dll"
             )
         endif()
+    endif()
+    
+    # 复制配置文件到输出目录
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/config.json")
+        add_custom_command(TARGET Crawler POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/config.json"
+            "$<TARGET_FILE_DIR:Crawler>/config.json"
+            COMMENT "Copying config.json"
+        )
     endif()
 endif()
 

@@ -36,6 +36,22 @@ public:
      * @return 成功存储的数量
      */
     int storeJobDataBatch(const std::vector<::JobInfo>& crawledJobs);
+    
+    /**
+     * @brief 存储单条职位数据并指定sourceId
+     * @param crawledJob 爬虫数据
+     * @param sourceId 数据来源ID
+     * @return 成功返回jobId，失败返回-1
+     */
+    int storeJobDataWithSource(const ::JobInfo& crawledJob, int sourceId);
+    
+    /**
+     * @brief 批量存储职位数据并指定sourceId
+     * @param crawledJobs 职位数据列表
+     * @param sourceId 数据来源ID
+     * @return 成功存储的数量
+     */
+    int storeJobDataBatchWithSource(const std::vector<::JobInfo>& crawledJobs, int sourceId);
 
     // ========== 基础SQL操作方法 ==========
     

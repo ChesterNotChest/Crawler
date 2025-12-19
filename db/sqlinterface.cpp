@@ -54,8 +54,23 @@ bool SQLInterface::createAllTables() {
 	const QString connName = QStringLiteral("crawler_conn");
 	QSqlDatabase db = QSqlDatabase::database(connName);
 
-	// RecruitType (fixed enum: 1=校招, 2=实习, 3=社招)
+	// Source (数据来源表)
 	QSqlQuery q(db);
+	if (!q.exec(
+		"CREATE TABLE IF NOT EXISTS Source ("
+		" sourceId INTEGER PRIMARY KEY AUTOINCREMENT,"
+		" sourceName TEXT NOT NULL,"
+		" sourceCode TEXT NOT NULL UNIQUE,"
+		" baseUrl TEXT,"
+		" enabled INTEGER DEFAULT 1,"
+		" createdAt TEXT,"
+		" updatedAt TEXT"
+		")")) {
+		qDebug() << "Create Source failed:" << q.lastError().text();
+		return false;
+	}
+
+	// RecruitType (fixed enum: 1=校招, 2=实习, 3=社招)
 	if (!q.exec(
 		"CREATE TABLE IF NOT EXISTS RecruitType ("
 		" recruitTypeId INTEGER PRIMARY KEY,"
@@ -104,13 +119,15 @@ bool SQLInterface::createAllTables() {
 		" companyId INTEGER,"
 		" recruitTypeId INTEGER,"
 		" cityId INTEGER,"
+		" sourceId INTEGER,"
 		" requirements TEXT,"
 		" salaryMin REAL,"
 		" salaryMax REAL,"
 		" salarySlabId INTEGER,"
 		" createTime TEXT,"
 		" updateTime TEXT,"
-		" hrLastLoginTime TEXT"
+		" hrLastLoginTime TEXT,"
+		" FOREIGN KEY(sourceId) REFERENCES Source(sourceId)"
 		")")) {
 		qDebug() << "Create Job failed:" << q.lastError().text();
 		return false;
@@ -125,6 +142,27 @@ bool SQLInterface::createAllTables() {
 		")")) {
 		qDebug() << "Create JobTagMapping failed:" << q.lastError().text();
 		return false;
+	}
+
+	// Database migration: Add sourceId column to Job table if not exists
+	if (q.exec("PRAGMA table_info(Job)")) {
+		bool hasSourceId = false;
+		while (q.next()) {
+			QString columnName = q.value(1).toString();
+			if (columnName == "sourceId") {
+				hasSourceId = true;
+				break;
+			}
+		}
+		
+		if (!hasSourceId) {
+			qDebug() << "[Migration] Adding sourceId column to Job table...";
+			if (!q.exec("ALTER TABLE Job ADD COLUMN sourceId INTEGER")) {
+				qDebug() << "Failed to add sourceId column:" << q.lastError().text();
+				return false;
+			}
+			qDebug() << "[Migration] sourceId column added successfully.";
+		}
 	}
 
 	// Initialize RecruitType enum values if empty
@@ -146,8 +184,143 @@ bool SQLInterface::createAllTables() {
 		}
 	}
 
+	// Initialize Source table with default sources if empty
+	if (!q.exec("SELECT COUNT(*) FROM Source")) {
+		qDebug() << "Count Source failed:" << q.lastError().text();
+		return false;
+	}
+	q.next();
+	if (q.value(0).toInt() == 0) {
+		q.prepare("INSERT INTO Source(sourceName, sourceCode, baseUrl, enabled, createdAt, updatedAt) "
+				  "VALUES(:name, :code, :url, :enabled, datetime('now'), datetime('now'))");
+		const QVector<QPair<QString, QPair<QString, QString>>> sources{
+			{"牛客网", {"nowcode", "https://www.nowcoder.com"}},
+			{"BOSS直聘", {"zhipin", "https://www.zhipin.com"}}
+		};
+		for (const auto &s : sources) {
+			q.bindValue(":name", s.first);
+			q.bindValue(":code", s.second.first);
+			q.bindValue(":url", s.second.second);
+			q.bindValue(":enabled", 1);
+			if (!q.exec()) {
+				qDebug() << "Insert Source failed:" << q.lastError().text();
+				return false;
+			}
+		}
+	}
+
 	qDebug() << "All tables created successfully.";
 	return true;
+}
+
+// Source operations
+int SQLInterface::insertSource(const SQLNS::Source &source) {
+	if (!isConnected()) return -1;
+	const QString connName = QStringLiteral("crawler_conn");
+	QSqlDatabase db = QSqlDatabase::database(connName);
+	QSqlQuery q(db);
+	q.prepare("INSERT OR IGNORE INTO Source(sourceName, sourceCode, baseUrl, enabled, createdAt, updatedAt) "
+			  "VALUES(:name, :code, :url, :enabled, datetime('now'), datetime('now'))");
+	q.bindValue(":name", source.sourceName);
+	q.bindValue(":code", source.sourceCode);
+	q.bindValue(":url", source.baseUrl);
+	q.bindValue(":enabled", source.enabled ? 1 : 0);
+	q.exec(); // ignore duplicates
+	q.prepare("SELECT sourceId FROM Source WHERE sourceCode = :code");
+	q.bindValue(":code", source.sourceCode);
+	if (q.exec() && q.next()) {
+		return q.value(0).toInt();
+	}
+	return -1;
+}
+
+SQLNS::Source SQLInterface::querySourceById(int sourceId) {
+	SQLNS::Source source;
+	source.sourceId = -1;
+	if (!isConnected()) return source;
+	const QString connName = QStringLiteral("crawler_conn");
+	QSqlDatabase db = QSqlDatabase::database(connName);
+	QSqlQuery q(db);
+	q.prepare("SELECT sourceId, sourceName, sourceCode, baseUrl, enabled, createdAt, updatedAt "
+			  "FROM Source WHERE sourceId = :id");
+	q.bindValue(":id", sourceId);
+	if (q.exec() && q.next()) {
+		source.sourceId = q.value(0).toInt();
+		source.sourceName = q.value(1).toString();
+		source.sourceCode = q.value(2).toString();
+		source.baseUrl = q.value(3).toString();
+		source.enabled = q.value(4).toInt() != 0;
+		source.createdAt = q.value(5).toString();
+		source.updatedAt = q.value(6).toString();
+	}
+	return source;
+}
+
+SQLNS::Source SQLInterface::querySourceByCode(const QString &sourceCode) {
+	SQLNS::Source source;
+	source.sourceId = -1;
+	if (!isConnected()) return source;
+	const QString connName = QStringLiteral("crawler_conn");
+	QSqlDatabase db = QSqlDatabase::database(connName);
+	QSqlQuery q(db);
+	q.prepare("SELECT sourceId, sourceName, sourceCode, baseUrl, enabled, createdAt, updatedAt "
+			  "FROM Source WHERE sourceCode = :code");
+	q.bindValue(":code", sourceCode);
+	if (q.exec() && q.next()) {
+		source.sourceId = q.value(0).toInt();
+		source.sourceName = q.value(1).toString();
+		source.sourceCode = q.value(2).toString();
+		source.baseUrl = q.value(3).toString();
+		source.enabled = q.value(4).toInt() != 0;
+		source.createdAt = q.value(5).toString();
+		source.updatedAt = q.value(6).toString();
+	}
+	return source;
+}
+
+QVector<SQLNS::Source> SQLInterface::queryAllSources() {
+	QVector<SQLNS::Source> sources;
+	if (!isConnected()) return sources;
+	const QString connName = QStringLiteral("crawler_conn");
+	QSqlDatabase db = QSqlDatabase::database(connName);
+	QSqlQuery q(db);
+	if (q.exec("SELECT sourceId, sourceName, sourceCode, baseUrl, enabled, createdAt, updatedAt FROM Source")) {
+		while (q.next()) {
+			SQLNS::Source source;
+			source.sourceId = q.value(0).toInt();
+			source.sourceName = q.value(1).toString();
+			source.sourceCode = q.value(2).toString();
+			source.baseUrl = q.value(3).toString();
+			source.enabled = q.value(4).toInt() != 0;
+			source.createdAt = q.value(5).toString();
+			source.updatedAt = q.value(6).toString();
+			sources.append(source);
+		}
+	}
+	return sources;
+}
+
+QVector<SQLNS::Source> SQLInterface::queryEnabledSources() {
+	QVector<SQLNS::Source> sources;
+	if (!isConnected()) return sources;
+	const QString connName = QStringLiteral("crawler_conn");
+	QSqlDatabase db = QSqlDatabase::database(connName);
+	QSqlQuery q(db);
+	if (q.exec("SELECT sourceId, sourceName, sourceCode, baseUrl, enabled, createdAt, updatedAt "
+			   "FROM Source WHERE enabled = 1")) {
+		while (q.next()) {
+			SQLNS::Source source;
+			source.sourceId = q.value(0).toInt();
+			source.sourceName = q.value(1).toString();
+			source.sourceCode = q.value(2).toString();
+			source.baseUrl = q.value(3).toString();
+			source.enabled = q.value(4).toInt() != 0;
+			source.createdAt = q.value(5).toString();
+			source.updatedAt = q.value(6).toString();
+			sources.append(source);
+		}
+	}
+	return sources;
 }
 
 int SQLInterface::insertCompany(int companyId, const QString &companyName) {
@@ -233,15 +406,16 @@ int SQLInterface::insertJob(const SQLNS::JobInfo &job) {
 	QSqlDatabase db = QSqlDatabase::database(connName);
 	QSqlQuery q(db);
 	q.prepare(
-		"INSERT INTO Job(jobId, jobName, companyId, recruitTypeId, cityId, "
+		"INSERT INTO Job(jobId, jobName, companyId, recruitTypeId, cityId, sourceId, "
 		"requirements, salaryMin, salaryMax, salarySlabId, createTime, updateTime, hrLastLoginTime) "
-		"VALUES(:jobId, :jobName, :companyId, :recruitTypeId, :cityId, "
+		"VALUES(:jobId, :jobName, :companyId, :recruitTypeId, :cityId, :sourceId, "
 		":requirements, :salaryMin, :salaryMax, :salarySlabId, :createTime, :updateTime, :hrLastLoginTime)");
 	q.bindValue(":jobId", QVariant::fromValue<qlonglong>(job.jobId));
 	q.bindValue(":jobName", job.jobName);
 	q.bindValue(":companyId", job.companyId);
 	q.bindValue(":recruitTypeId", job.recruitTypeId);
 	q.bindValue(":cityId", job.cityId);
+	q.bindValue(":sourceId", job.sourceId);
 	q.bindValue(":requirements", job.requirements);
 	q.bindValue(":salaryMin", job.salaryMin);
 	q.bindValue(":salaryMax", job.salaryMax);
@@ -273,7 +447,7 @@ QVector<SQLNS::JobInfo> SQLInterface::queryAllJobs() {
 	const QString connName = QStringLiteral("crawler_conn");
 	QSqlDatabase db = QSqlDatabase::database(connName);
 	QSqlQuery q(db);
-	if (!q.exec("SELECT jobId, jobName, companyId, recruitTypeId, cityId, requirements, "
+	if (!q.exec("SELECT jobId, jobName, companyId, recruitTypeId, cityId, sourceId, requirements, "
 				"salaryMin, salaryMax, salarySlabId, createTime, updateTime, hrLastLoginTime "
 				"FROM Job ORDER BY jobId ASC")) {
 		qDebug() << "Select Job failed:" << q.lastError().text();
@@ -286,13 +460,14 @@ QVector<SQLNS::JobInfo> SQLInterface::queryAllJobs() {
 		job.companyId = q.value(2).toInt();
 		job.recruitTypeId = q.value(3).toInt();
 		job.cityId = q.value(4).toInt();
-		job.requirements = q.value(5).toString();
-		job.salaryMin = q.value(6).toDouble();
-		job.salaryMax = q.value(7).toDouble();
-		job.salarySlabId = q.value(8).toInt();
-		job.createTime = q.value(9).toString();
-		job.updateTime = q.value(10).toString();
-		job.hrLastLoginTime = q.value(11).toString();
+		job.sourceId = q.value(5).toInt();
+		job.requirements = q.value(6).toString();
+		job.salaryMin = q.value(7).toDouble();
+		job.salaryMax = q.value(8).toDouble();
+		job.salarySlabId = q.value(9).toInt();
+		job.createTime = q.value(10).toString();
+		job.updateTime = q.value(11).toString();
+		job.hrLastLoginTime = q.value(12).toString();
 
 		// Query tags for this job
 		QSqlQuery tagQuery(db);

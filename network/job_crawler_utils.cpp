@@ -41,13 +41,6 @@ std::string timestamp_to_datetime(int64_t timestamp) {
     }
 }
 
-// CURL写回调函数
-size_t write_callback(void* contents, size_t size, size_t nmemb, std::string* response) {
-    size_t total_size = size * nmemb;
-    response->append((char*)contents, total_size);
-    return total_size;
-}
-
 static inline void replace_all(std::string& s, const std::string& from, const std::string& to) {
     if (from.empty()) return;
     size_t start_pos = 0;

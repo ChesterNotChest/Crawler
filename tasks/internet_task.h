@@ -2,7 +2,10 @@
 #define INTERNET_TASK_H
 
 #include <vector>
+#include <string>
 #include "network/job_crawler.h"
+#include "network/crawl_nowcode.h"
+#include "network/crawl_zhipin.h"
 
 /**
  * @brief InternetTask - 负责网络爬虫操作
@@ -13,7 +16,7 @@ public:
     InternetTask();
     
     /**
-     * @brief 从网络爬取职位数据
+     * @brief 从网络爬取职位数据（牛客网）
      * @param pageNo 页码
      * @param pageSize 每页数量
      * @param recruitType 招聘类型 (1=校招, 2=实习, 3=社招，默认=1)
@@ -22,7 +25,7 @@ public:
     std::pair<std::vector<JobInfo>, MappingData> fetchJobData(int pageNo, int pageSize, int recruitType = DEFAULT_RECRUIT_TYPE);
     
     /**
-     * @brief 批量爬取多页数据
+     * @brief 批量爬取多页数据（牛客网）
      * @param startPage 起始页
      * @param endPage 结束页
      * @param pageSize 每页数量
@@ -31,6 +34,25 @@ public:
      */
     std::pair<std::vector<JobInfo>, MappingData> fetchJobDataMultiPage(
         int startPage, int endPage, int pageSize, int recruitType = DEFAULT_RECRUIT_TYPE);
+    
+    /**
+     * @brief 按指定数据来源爬取数据
+     * @param sourceCode 数据源代码 ("nowcode" 或 "zhipin")
+     * @param pageNo 页码
+     * @param pageSize 每页数量
+     * @param recruitType 招聘类型（仅对nowcode有效）
+     * @return 爬取到的JobInfo列表和映射数据
+     */
+    std::pair<std::vector<JobInfo>, MappingData> crawlBySource(
+        const std::string& sourceCode, int pageNo, int pageSize, int recruitType = DEFAULT_RECRUIT_TYPE);
+    
+    /**
+     * @brief 爬取所有启用的数据源
+     * @param pageNo 页码
+     * @param pageSize 每页数量
+     * @return 所有数据源的JobInfo列表和合并的映射数据
+     */
+    std::pair<std::vector<JobInfo>, MappingData> crawlAll(int pageNo, int pageSize);
     
 private:
     // 爬虫配置参数可以在这里管理
