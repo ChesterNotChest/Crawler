@@ -5,6 +5,7 @@
 2. 部分通用的可复用的部分：
     常量，放在constant/network_types.h 
     方法，放在network/job_crawl_utils.cpp
+3. 产生的依旧应该是constant/network_types.h里定义的各类结构体
 
 如下是它们的单个职位的json部分内容。
 

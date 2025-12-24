@@ -31,8 +31,13 @@ size_t header_callback(char* buffer, size_t size, size_t nitems, std::string* he
 std::string fetch_cookies_from_page(const std::string& url);
 std::optional<json> fetch_job_data(const std::string& url, const std::map<std::string, std::string>& headers,
                                    const std::string& post_data);
-std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_data);
+// parse_job_data moved to per-source parsers (crawl_nowcode / crawl_zhipin)
 std::string sanitize_html_to_text(const std::string& html);
+// Safe getters for JSON fields (moved here to centralize parser helpers)
+int get_int_safe(const json& obj, const char* key, int def = 0);
+int64_t get_int64_safe(const json& obj, const char* key, int64_t def = 0);
+double get_double_safe(const json& obj, const char* key, double def = 0.0);
+std::string get_string_safe(const json& obj, const char* key, const std::string& def = "");
 void print_data_formatted(const std::vector<JobInfo>& job_info_list,
                           const std::vector<TypeInfo>& type_list,
                           const std::vector<AreaInfo>& area_list,

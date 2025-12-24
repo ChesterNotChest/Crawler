@@ -4,6 +4,7 @@
 #include <sstream>
 #include <regex>
 #include <algorithm>
+// helpers are declared in job_crawler.h
 
 // Debug info print function
 void print_debug_info(const std::string& stage, const std::string& message,
@@ -98,4 +99,40 @@ std::string sanitize_html_to_text(const std::string& html) {
         print_debug_info("Sanitize", std::string("Failed: ") + e.what());
         return html;
     }
+}
+
+int get_int_safe(const json& obj, const char* key, int def) {
+    auto it = obj.find(key);
+    if (it == obj.end() || it->is_null()) return def;
+    if (it->is_number_integer()) return it->get<int>();
+    if (it->is_number()) return static_cast<int>(it->get<double>());
+    if (it->is_string()) {
+        try { return std::stoi(it->get<std::string>()); } catch (...) { return def; }
+    }
+    return def;
+}
+
+int64_t get_int64_safe(const json& obj, const char* key, int64_t def) {
+    auto it = obj.find(key);
+    if (it == obj.end() || it->is_null()) return def;
+    if (it->is_number_integer()) return it->get<int64_t>();
+    if (it->is_number_float()) return static_cast<int64_t>(it->get<double>());
+    if (it->is_string()) {
+        try { return std::stoll(it->get<std::string>()); } catch (...) { return def; }
+    }
+    return def;
+}
+
+double get_double_safe(const json& obj, const char* key, double def) {
+    auto it = obj.find(key);
+    if (it == obj.end() || it->is_null()) return def;
+    if (it->is_number()) return it->get<double>();
+    return def;
+}
+
+std::string get_string_safe(const json& obj, const char* key, const std::string& def) {
+    auto it = obj.find(key);
+    if (it == obj.end() || it->is_null()) return def;
+    if (it->is_string()) return it->get<std::string>();
+    return def;
 }

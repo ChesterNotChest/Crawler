@@ -7,8 +7,8 @@ void test_batch_crawl() {
     qDebug() << "[Test] 开始 batch crawl 集成测试（轻量）";
 
     SQLInterface sql;
-    // 使用内存数据库以避免写盘
-    if (!sql.connectSqlite(":memory:")) {
+    // 使用磁盘数据库 crawler.db（按要求写入文件）
+    if (!sql.connectSqlite("crawler.db")) {
         qDebug() << "[Test] 无法连接内存 SQLite，测试将中止";
         return;
     }

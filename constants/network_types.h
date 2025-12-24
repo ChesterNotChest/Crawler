@@ -70,5 +70,24 @@ struct MappingData {
     // 对于分页API（如BOSS直聘），指示是否还有更多数据；默认保守继续（true）
     bool has_more = true;
 };
+#include <string>
+#include <vector>
 
+// BOSS直聘常用城市列表（用于遍历不同城市以获取更多职位）
+inline const std::vector<std::string> ZHIPIN_CITY_LIST = {
+    "101010100",
+    "101020100",
+    "101280100",
+    "101280600",
+    "101210100",
+    "101030100",
+    "101110100",
+    "101190400",
+    "101200100",
+    "101230200",
+    "101250100",
+    "101270100",
+    "101180100",
+    "101040100"
+};
 #endif // NETWORK_TYPES_H

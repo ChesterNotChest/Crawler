@@ -126,28 +126,42 @@ std::pair<std::vector<JobInfo>, MappingData> parseZhipinResponse(const json& jso
                 }
                 job.area_id = job_item.value("city", 0);
                 
-                // 薪资信息（解析"5-10K"格式）
+                // 薪资信息处理：支持带K和不带K两种格式
                 std::string salary_desc = job_item.value("salaryDesc", "");
                 if (!salary_desc.empty()) {
-                    // 简单解析，格式如"5-10K"或"15-25K·13薪"
+                    // 判断是否含有 'K' 单位（如 30-60K·19薪），否则为类似 300-600元/天
+                    bool hasK = (salary_desc.find('K') != std::string::npos) || (salary_desc.find('k') != std::string::npos);
+
+                    // 简单安全的数字提取器
+                    auto parse_double = [](const std::string& s)->double {
+                        std::string t;
+                        for (char c : s) {
+                            if ((c >= '0' && c <= '9') || c == '.' || c == '-') t.push_back(c);
+                            else if (!t.empty()) break; // stop at first non-number after started
+                        }
+                        try { return t.empty() ? 0.0 : std::stod(t); } catch (...) { return 0.0; }
+                    };
+
                     size_t dash_pos = salary_desc.find('-');
                     if (dash_pos != std::string::npos) {
-                        try {
-                            std::string min_str = salary_desc.substr(0, dash_pos);
-                            std::string max_str = salary_desc.substr(dash_pos + 1);
-                            
-                            // 移除K及之后的内容
-                            size_t k_pos = max_str.find('K');
-                            if (k_pos != std::string::npos) {
-                                max_str = max_str.substr(0, k_pos);
-                            }
-                            
-                            job.salary_min = std::stod(min_str);
-                            job.salary_max = std::stod(max_str);
-                        } catch (...) {
-                            job.salary_min = 0;
-                            job.salary_max = 0;
-                        }
+                        std::string min_str = salary_desc.substr(0, dash_pos);
+                        std::string max_str = salary_desc.substr(dash_pos + 1);
+                        // If max_str contains 'K', trim after it to avoid trailing tokens
+                        size_t k_pos = max_str.find('K');
+                        if (k_pos == std::string::npos) k_pos = max_str.find('k');
+                        if (k_pos != std::string::npos) max_str = max_str.substr(0, k_pos);
+
+                        job.salary_min = parse_double(min_str);
+                        job.salary_max = parse_double(max_str);
+                    } else {
+                        double v = parse_double(salary_desc);
+                        job.salary_min = v;
+                        job.salary_max = v;
+                    }
+
+                    // 若不含 K，则将招聘类型自动设为实习（2）
+                    if (!hasK) {
+                        job.type_id = 2;
                     }
                 }
                 
@@ -202,7 +216,7 @@ std::pair<std::vector<JobInfo>, MappingData> parseZhipinResponse(const json& jso
                 job.hr_last_login = "";
                 
                 // 招聘类型（BOSS直聘没有明确分类，默认设为社招=3）
-                job.type_id = 3;
+                if (job.type_id == 0) job.type_id = 3;
                 
                 // 薪资档次（需要根据薪资范围计算）
                 if (job.salary_max > 0) {

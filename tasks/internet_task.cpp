@@ -28,15 +28,16 @@ std::pair<std::vector<JobInfo>, MappingData> InternetTask::fetchJobData(int page
 }
 
 std::pair<std::vector<JobInfo>, MappingData> InternetTask::fetchBySource(
-    const std::string& sourceCode, int pageNo, int pageSize, int recruitType) {
+    const std::string& sourceCode, int pageNo, int pageSize, int recruitType, const std::string& city) {
     
     qDebug() << "[InternetTask] 按来源爬取:" << sourceCode.c_str() << ", 页码:" << pageNo;
     
     if (sourceCode == "nowcode") {
         return NowcodeCrawler::crawlNowcode(pageNo, pageSize, recruitType);
     } else if (sourceCode == "zhipin") {
-        // BOSS直聘使用北京城市代码 101010100
-        return ZhipinCrawler::crawlZhipin(pageNo, pageSize, "100010000");
+        // BOSS直聘：优先使用传入的 city 参数（若为空则使用默认城市代码）
+        const std::string useCity = city.empty() ? std::string("100010000") : city;
+        return ZhipinCrawler::crawlZhipin(pageNo, pageSize, useCity);
     } else {
         qDebug() << "[错误] 未知的数据源:" << sourceCode.c_str();
         return {{}, {}};

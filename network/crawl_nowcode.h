@@ -46,7 +46,7 @@ std::string buildNowcodePostData(int pageNo, int pageSize, int recruitType);
  * @param json_data JSON数据
  * @return JobInfo列表和映射数据的pair
  */
-std::pair<std::vector<JobInfo>, MappingData> parseNowcodeResponse(const json& json_data);
+std::pair<std::vector<JobInfo>, MappingData> parseNowcodeResponse(const json& json_data, int requestedRecruitType);
 
 /**
  * @brief 牛客网爬虫主函数

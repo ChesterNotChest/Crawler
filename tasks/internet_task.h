@@ -44,7 +44,8 @@ public:
      * @return 爬取到的JobInfo列表和映射数据
      */
     std::pair<std::vector<JobInfo>, MappingData> fetchBySource(
-        const std::string& sourceCode, int pageNo, int pageSize, int recruitType = DEFAULT_RECRUIT_TYPE);
+        const std::string& sourceCode, int pageNo, int pageSize, int recruitType = DEFAULT_RECRUIT_TYPE,
+        const std::string& city = "");
 
     /**
      * @brief 根据数据源执行Cookie更新（使用WebView2等方式），并将结果写入config.json

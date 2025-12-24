@@ -4,42 +4,7 @@
 #include <map>
 #include <cstdint>
 
-// Safe getters to avoid exceptions when JSON fields are null or of unexpected types
-static inline int get_int_safe(const json& obj, const char* key, int def = 0) {
-    auto it = obj.find(key);
-    if (it == obj.end() || it->is_null()) return def;
-    if (it->is_number_integer()) return it->get<int>();
-    if (it->is_number()) return static_cast<int>(it->get<double>());
-    if (it->is_string()) {
-        try { return std::stoi(it->get<std::string>()); } catch (...) { return def; }
-    }
-    return def;
-}
-
-static inline int64_t get_int64_safe(const json& obj, const char* key, int64_t def = 0) {
-    auto it = obj.find(key);
-    if (it == obj.end() || it->is_null()) return def;
-    if (it->is_number_integer()) return it->get<int64_t>();
-    if (it->is_number_float()) return static_cast<int64_t>(it->get<double>());
-    if (it->is_string()) {
-        try { return std::stoll(it->get<std::string>()); } catch (...) { return def; }
-    }
-    return def;
-}
-
-static inline double get_double_safe(const json& obj, const char* key, double def = 0.0) {
-    auto it = obj.find(key);
-    if (it == obj.end() || it->is_null()) return def;
-    if (it->is_number()) return it->get<double>();
-    return def;
-}
-
-static inline std::string get_string_safe(const json& obj, const char* key, const std::string& def = "") {
-    auto it = obj.find(key);
-    if (it == obj.end() || it->is_null()) return def;
-    if (it->is_string()) return it->get<std::string>();
-    return def;
-}
+// Shared JSON-safe getters are declared in job_crawler.h
 
 // 数据解析函数
 std::pair<std::vector<JobInfo>, MappingData> parse_job_data(const json& json_data) {
