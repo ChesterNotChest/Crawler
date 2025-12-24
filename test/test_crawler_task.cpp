@@ -49,7 +49,7 @@ void test_crawler_task_integration() {
     qDebug() << "\n[1/2] 开始爬取牛客网数据...";
     
     // 爬取牛客网第1页，校招类型
-    auto [nowcodeJobs, nowcodeMapping] = internetTask.crawlBySource("nowcode", 1, 10, 1);
+    auto [nowcodeJobs, nowcodeMapping] = internetTask.fetchBySource("nowcode", 1, 10, 1);
     
     if (!nowcodeJobs.empty()) {
         int count = sqlTask.storeJobDataBatchWithSource(nowcodeJobs, nowcodeSource.sourceId);
@@ -70,7 +70,7 @@ void test_crawler_task_integration() {
     qDebug() << "\n[2/2] 开始爬取BOSS直聘数据...";
     
     // 爬取BOSS直聘第1页
-    auto [zhipinJobs, zhipinMapping] = internetTask.crawlBySource("zhipin", 1, 10);
+    auto [zhipinJobs, zhipinMapping] = internetTask.fetchBySource("zhipin", 1, 10);
     
     if (!zhipinJobs.empty()) {
         int count = sqlTask.storeJobDataBatchWithSource(zhipinJobs, zhipinSource.sourceId);

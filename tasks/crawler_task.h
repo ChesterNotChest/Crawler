@@ -18,22 +18,15 @@ public:
      */
     CrawlerTask(SQLInterface *sqlInterface);
     
-    /**
-     * @brief 爬取并存储单页数据（自动遍历校招/实习/社招）
-     * @param pageNo 页码
-     * @param pageSize 每页数量
-     * @return 成功存储的总数量（所有类型）
-     */
-    int crawlAndStore(int pageNo, int pageSize);
+    
+
     
     /**
-     * @brief 爬取并存储多页数据（自动遍历校招/实习/社招）
-     * @param startPage 起始页
-     * @param endPage 结束页
-     * @param pageSize 每页数量
-     * @return 成功存储的总数量（所有类型）
+     * @brief 按来源爬取所有数据（两层循环），会调用internet_task.updateCookieBySource并在失败时重试
+     * @param maxPagesPerSource 每个来源的最大页数上限（避免无限循环），0 表示无限制
+     * @param pageSize 每页大小
      */
-    int crawlAndStoreMultiPage(int startPage, int endPage, int pageSize);
+    int crawlAll(int maxPagesPerSource = 0, int pageSize = 15);
     
 private:
     InternetTask m_internetTask;  // 网络爬虫任务

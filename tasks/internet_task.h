@@ -43,8 +43,16 @@ public:
      * @param recruitType 招聘类型（仅对nowcode有效）
      * @return 爬取到的JobInfo列表和映射数据
      */
-    std::pair<std::vector<JobInfo>, MappingData> crawlBySource(
+    std::pair<std::vector<JobInfo>, MappingData> fetchBySource(
         const std::string& sourceCode, int pageNo, int pageSize, int recruitType = DEFAULT_RECRUIT_TYPE);
+
+    /**
+     * @brief 根据数据源执行Cookie更新（使用WebView2等方式），并将结果写入config.json
+     * @param sourceCode "nowcode" 或 "zhipin"
+     * @param timeoutMs 等待cookie获取的超时时间（ms）
+     * @return 成功返回true
+     */
+    bool updateCookieBySource(const std::string& sourceCode, int timeoutMs = 15000);
     
     /**
      * @brief 爬取所有启用的数据源
@@ -56,7 +64,7 @@ public:
     
 private:
     // 爬虫配置参数可以在这里管理
-    static constexpr int DEFAULT_PAGE_SIZE = 10;
+    static constexpr int DEFAULT_PAGE_SIZE = 15;
     static constexpr int DEFAULT_RECRUIT_TYPE = 1; // 校招
 };
 

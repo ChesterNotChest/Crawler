@@ -64,6 +64,11 @@ struct MappingData {
     std::vector<TypeInfo> type_list;                // 招聘类型列表
     std::vector<AreaInfo> area_list;                // 地区列表
     std::vector<SalaryLevelInfo> salary_level_list; // 薪资档次列表
+    // 最近一次API调用返回的状态码与信息（用于判定反爬/错误）
+    int last_api_code = 0;
+    std::string last_api_message;
+    // 对于分页API（如BOSS直聘），指示是否还有更多数据；默认保守继续（true）
+    bool has_more = true;
 };
 
 #endif // NETWORK_TYPES_H

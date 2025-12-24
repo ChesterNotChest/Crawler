@@ -84,6 +84,8 @@ set(TEST_SOURCES
         # Cookie获取测试
         # test/test_webview2_cookie.cpp (已废弃)
         test/test_webview2_cookie_wrl.cpp
+        # 批量爬取集成测试
+        test/test_batch_crawl.cpp
         # [Deprecated] 以下测试已被新架构替代，可删除
         # test/test_sql.cpp
         # test/test_job_crawler.cpp

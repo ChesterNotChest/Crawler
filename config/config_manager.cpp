@@ -2,16 +2,23 @@
 #include <QFile>
 #include <QJsonParseError>
 #include <QDebug>
+#include <QCoreApplication>
+#include <QDir>
 
 QJsonObject ConfigManager::s_config;
 bool ConfigManager::s_loaded = false;
+QString ConfigManager::s_configPath;
 
 bool ConfigManager::loadConfig(const QString& configPath) {
-    QFile configFile(configPath);
+    QString resolved = configPath;
+    if (configPath == "config.json") {
+        resolved = getConfigFilePath(configPath);
+    }
+    QFile configFile(resolved);
     
     if (!configFile.exists()) {
-        qDebug() << "[ConfigManager] 配置文件不存在:" << configPath;
-        qDebug() << "[提示] 请创建config.json配置文件";
+        qDebug() << "[ConfigManager] 配置文件不存在:" << resolved;
+        qDebug() << "[提示] 请创建config.json配置文件于项目根目录或" << resolved;
         return false;
     }
     
@@ -38,8 +45,44 @@ bool ConfigManager::loadConfig(const QString& configPath) {
     
     s_config = doc.object();
     s_loaded = true;
-    
-    qDebug() << "[ConfigManager] 配置加载成功:" << configPath;
+    s_configPath = resolved;
+
+    qDebug() << "[ConfigManager] 配置加载成功:" << s_configPath;
+    return true;
+}
+
+QString ConfigManager::getConfigFilePath(const QString& hint) {
+    // 从可执行目录向上搜索包含 CMakeLists.txt 的目录，认为该目录为项目根
+    QDir dir(QCoreApplication::applicationDirPath());
+    for (int depth = 0; depth < 12; ++depth) {
+        QString candidateCMake = dir.filePath("CMakeLists.txt");
+        if (QFile::exists(candidateCMake)) {
+            QString cfg = dir.filePath("config.json");
+            return cfg;
+        }
+        if (!dir.cdUp()) break;
+    }
+
+    // 未找到项目根，尝试使用 hint 相对于可执行目录的位置
+    QString fallback = QCoreApplication::applicationDirPath() + QLatin1String("/") + hint;
+    return fallback;
+}
+
+bool ConfigManager::saveConfig() {
+    QString path = s_configPath;
+    if (path.isEmpty()) {
+        path = getConfigFilePath();
+        s_configPath = path;
+    }
+
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        qDebug() << "[ConfigManager] 无法打开config.json写入:" << path << ", 错误:" << f.errorString();
+        return false;
+    }
+    f.write(QJsonDocument(s_config).toJson(QJsonDocument::Indented));
+    f.close();
+    qDebug() << "[ConfigManager] 配置已保存到:" << path;
     return true;
 }
 
@@ -64,20 +107,6 @@ QString ConfigManager::getZhipinCookie() {
     return QString();
 }
 
-QString ConfigManager::getZhipinCity() {
-    if (!s_loaded) {
-        loadConfig();
-    }
-    
-    if (s_config.contains("zhipin") && s_config["zhipin"].isObject()) {
-        QJsonObject zhipin = s_config["zhipin"].toObject();
-        if (zhipin.contains("city")) {
-            return zhipin["city"].toString();
-        }
-    }
-    
-    return "101010100"; // 默认北京
-}
 
 QString ConfigManager::getNowcodeCookie() {
     if (!s_loaded) {

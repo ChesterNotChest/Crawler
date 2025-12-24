@@ -28,13 +28,14 @@ int main(int argc, char *argv[])
 
 
     // ========== WebView2 WRL Cookie测试 ========== 
-    qDebug() << "\n========== WEBVIEW2 WRL COOKIE TEST =========\n";
-    test_webview2_cookie_wrl();
+    // qDebug() << "\n========== WEBVIEW2 WRL COOKIE TEST =========\n";
+    // test_webview2_cookie_wrl();
 
     // ========== 集成测试 ==========
     qDebug() << "\n========== INTEGRATION TEST ==========\n";
     qDebug() << "CrawlerTask 集成测试 - Crawler侧完整工作流";
-    test_crawler_task_integration();
+    //test_crawler_task_integration();
+    test_batch_crawl();
 
     // 启动GUI应用
     qDebug() << "\n========== Launching GUI ==========";

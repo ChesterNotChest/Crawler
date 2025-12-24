@@ -86,5 +86,9 @@ void test_zhipin_cookie_fetch();
 //   3. 输出Cookie信息
 void test_webview2_cookie_wrl();
 
+// 批量爬取集成测试（轻量）
+// 注意：该测试仅用于开发/集成验证，不应作为生产作业调度入口
+void test_batch_crawl();
+
 
 #endif // TEST_H

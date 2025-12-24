@@ -70,6 +70,9 @@ std::pair<std::vector<JobInfo>, MappingData> parseZhipinResponse(const json& jso
             std::ostringstream error_info;
             error_info << "code=" << code << ", message=\"" << message << "\"";
             print_debug_info("ZhipinParser", "API返回错误码", error_info.str(), DebugLevel::DL_ERROR);
+            // 将API返回码写入mapping_data，供上层做决策（例如检测反爬码37）
+            mapping_data.last_api_code = code;
+            mapping_data.last_api_message = message;
             return {job_list, mapping_data};
         }
         
@@ -78,7 +81,18 @@ std::pair<std::vector<JobInfo>, MappingData> parseZhipinResponse(const json& jso
             print_debug_info("ZhipinParser", "响应中缺少jobList数据", "", DebugLevel::DL_ERROR);
             return {job_list, mapping_data};
         }
-        
+
+        // 读取分页/应答提示字段：hasMore 表示是否有更多数据（若缺失，默认继续）
+        if (json_data["zpData"].contains("hasMore")) {
+            try {
+                mapping_data.has_more = json_data["zpData"]["hasMore"].get<bool>();
+            } catch (...) {
+                mapping_data.has_more = true;
+            }
+        } else {
+            mapping_data.has_more = true; // 不要因为缺少字段而停止
+        }
+
         const auto& job_array = json_data["zpData"]["jobList"];
         print_debug_info("ZhipinParser", "开始解析BOSS直聘数据", "职位数量: " + std::to_string(job_array.size()));
         
@@ -211,6 +225,8 @@ std::pair<std::vector<JobInfo>, MappingData> parseZhipinResponse(const json& jso
             }
         }
         
+        mapping_data.last_api_code = 0;
+        mapping_data.last_api_message = "OK";
         print_debug_info("ZhipinParser", "成功解析职位数据", "数量: " + std::to_string(job_list.size()));
         
     } catch (const std::exception& e) {
