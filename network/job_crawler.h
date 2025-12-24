@@ -28,7 +28,6 @@ void print_debug_info(const std::string& stage, const std::string& message,
 std::string timestamp_to_datetime(int64_t timestamp);
 size_t write_callback(void* contents, size_t size, size_t nmemb, std::string* response);
 size_t header_callback(char* buffer, size_t size, size_t nitems, std::string* headers);
-std::string fetch_cookies_from_page(const std::string& url);
 std::optional<json> fetch_job_data(const std::string& url, const std::map<std::string, std::string>& headers,
                                    const std::string& post_data);
 // parse_job_data moved to per-source parsers (crawl_nowcode / crawl_zhipin)

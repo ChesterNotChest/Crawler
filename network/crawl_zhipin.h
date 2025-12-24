@@ -51,13 +51,6 @@ std::pair<std::vector<JobInfo>, MappingData> parseZhipinResponse(const json& jso
 std::pair<std::vector<JobInfo>, MappingData> crawlZhipin(int page = 1, int pageSize = 15, 
                                                           const std::string& city = "101010100");
 
-/**
- * @brief 初始化BOSS直聘Cookie（访问主页面获取基础Cookie）
- * @param city 城市代码（默认101010100为北京）
- * @return Cookie字符串
- * @note 此函数仅获取基础Cookie（如ab_guid等），无法获取JS生成的__zp_stoken__等
- */
-std::string initZhipinCookies(const std::string& city = "101010100");
 
 } // namespace ZhipinCrawler
 

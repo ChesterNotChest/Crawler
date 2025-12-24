@@ -294,25 +294,6 @@ std::pair<std::vector<JobInfo>, MappingData> crawlZhipin(int page, int pageSize,
     }
 }
 
-std::string initZhipinCookies(const std::string& city) {
-    print_debug_info("ZhipinInit", "开始获取BOSS直聘Cookie", "城市: " + city);
-    
-    // 构建主页面URL
-    std::string page_url = "https://www.zhipin.com/web/geek/jobs?city=" + city;
-    
-    // 访问页面获取Cookie
-    std::string cookies = fetch_cookies_from_page(page_url);
-    
-    if (!cookies.empty()) {
-        print_debug_info("ZhipinInit", "成功获取Cookie", cookies);
-        qDebug() << "[提示] 获取的Cookie可能不完整，__zp_stoken__等关键token需要JS执行生成";
-        qDebug() << "[建议] 如API仍失败，请从浏览器手动复制完整Cookie\n";
-    } else {
-        print_debug_info("ZhipinInit", "Cookie获取失败", "", DebugLevel::DL_WARN);
-        qDebug() << "[警告] 未能获取到Cookie，建议手动从浏览器复制\n";
-    }
-    
-    return cookies;
-}
+
 
 } // namespace ZhipinCrawler
