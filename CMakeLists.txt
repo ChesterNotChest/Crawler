@@ -64,6 +64,8 @@ set(NETWORK_SOURCES
         network/job_crawler_printer.cpp
         network/crawl_nowcode.h
         network/crawl_nowcode.cpp
+        network/crawl_chinahr.h
+        network/crawl_chinahr.cpp
         network/crawl_zhipin.h
         network/crawl_zhipin.cpp
         # network/webview2_browser.h (已废弃)

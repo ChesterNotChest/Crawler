@@ -92,7 +92,6 @@ std::pair<std::vector<JobInfo>, MappingData> crawlNowcode(int pageNo, int pageSi
     }
 }
 
-// 专用解析函数：将来可逐步把 Nowcode 特有解析逻辑放在此处
 std::pair<std::vector<JobInfo>, MappingData> parseNowcodeResponse(const json& json_data, int requestedRecruitType) {
     std::vector<JobInfo> job_list;
     MappingData mapping;

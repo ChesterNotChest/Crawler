@@ -38,6 +38,9 @@ std::pair<std::vector<JobInfo>, MappingData> InternetTask::fetchBySource(
         // BOSS直聘：优先使用传入的 city 参数（若为空则使用默认城市代码）
         const std::string useCity = city.empty() ? std::string("100010000") : city;
         return ZhipinCrawler::crawlZhipin(pageNo, pageSize, useCity);
+        } else if (sourceCode == "chinahr") {
+            // Chinahr 使用默认 localId=1，可在后续扩展为参数
+            return ChinahrCrawler::crawlChinahr(pageNo, pageSize, "1");
     } else {
         qDebug() << "[错误] 未知的数据源:" << sourceCode.c_str();
         return {{}, {}};

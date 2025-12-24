@@ -6,6 +6,7 @@
 #include "network/job_crawler.h"
 #include "network/crawl_nowcode.h"
 #include "network/crawl_zhipin.h"
+#include "network/crawl_chinahr.h"
 
 /**
  * @brief InternetTask - 负责网络爬虫操作
