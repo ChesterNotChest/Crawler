@@ -10,6 +10,7 @@
 #include <QCoreApplication>
 #include <QDate>
 #include "network/webview2_browser_wrl.h"
+#include "network/crawl_liepin.h"
 #include "config/config_manager.h"
 
 InternetTask::InternetTask() {
@@ -41,6 +42,9 @@ std::pair<std::vector<JobInfo>, MappingData> InternetTask::fetchBySource(
         } else if (sourceCode == "chinahr") {
             // Chinahr 使用默认 localId=1，可在后续扩展为参数
             return ChinahrCrawler::crawlChinahr(pageNo, pageSize, "1");
+        } else if (sourceCode == "liepin") {
+            // 使用 WebView2 注入脚本捕获 liepin 后台API响应；当前不会做parser，先捕获原始JSON并生成映射建议供人工确认
+            return LiepinCrawler::crawlLiepin(pageNo, pageSize, city);
     } else {
         qDebug() << "[错误] 未知的数据源:" << sourceCode.c_str();
         return {{}, {}};

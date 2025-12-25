@@ -18,8 +18,8 @@ int CrawlerTask::crawlAll(int maxPagesPerSource, int pageSize) {
     int totalStored = 0;
 
     // 数据源顺序：nowcode -> zhipin
-    // std::vector<std::string> sources = {"nowcode", "zhipin", "chinahr"};
-    std::vector<std::string> sources = {"zhipin"};
+    // std::vector<std::string> sources = {"nowcode", "zhipin", "chinahr", "liepin"};
+    std::vector<std::string> sources = {"liepin"};
     // 控制是否在页间暂停，以及哪些来源需要暂停（可按需修改）
     std::vector<std::string> pauseSources = { "zhipin" };
     for (const auto& src : sources) {

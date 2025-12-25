@@ -9,6 +9,9 @@
 #include <WebView2.h>
 #include <wrl.h>
 #include "wil/com.h"
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonValue>
 
 using namespace Microsoft::WRL;
 
@@ -68,6 +71,62 @@ HRESULT WebView2BrowserWRL::OnControllerCompleted(HRESULT result, ICoreWebView2C
     m_controller->put_Bounds(rect);
     m_controller->put_IsVisible(TRUE);
 
+    // 预注入拦截脚本，确保在页面脚本运行前替换fetch/XHR
+    if (m_captureRequests && m_webview) {
+        const wchar_t* preInject = LR"(
+            (function(){
+                try{
+                    function tryPost(msg){
+                        try{ if(window.chrome && window.chrome.webview && window.chrome.webview.postMessage){ window.chrome.webview.postMessage(JSON.stringify(msg)); } }catch(e){}
+                    }
+                    const target = 'api-c.liepin.com/api/com.liepin.searchfront4c.pc-search-job';
+                    const _fetch = window.fetch.bind(window);
+                    window.fetch = function() {
+                        return _fetch.apply(null, arguments).then(function(response){
+                            try{
+                                var url = (response && response.url) ? response.url : '';
+                                if(url.indexOf(target) !== -1){
+                                    response.clone().text().then(function(text){
+                                        try{
+                                            if(typeof text === 'string' && text.indexOf('jobCardList') !== -1){
+                                                tryPost({type:'api_response', url:url, body:text});
+                                            }
+                                        }catch(e){}
+                                    }).catch(function(){});
+                                }
+                            }catch(e){}
+                            return response;
+                        });
+                    };
+                    (function(open){
+                        XMLHttpRequest.prototype.open = function(method, url){
+                            this._reqUrl = url; return open.apply(this, arguments);
+                        };
+                    })(XMLHttpRequest.prototype.open);
+                    (function(send){
+                        XMLHttpRequest.prototype.send = function(){
+                            var self = this;
+                            this.addEventListener('readystatechange', function(){
+                                try{
+                                    if(self.readyState === 4 && self._reqUrl && self._reqUrl.indexOf('api-c.liepin.com/api/com.liepin.searchfront4c.pc-search-job') !== -1){
+                                        try{
+                                            var txt = self.responseText || '';
+                                            if(typeof txt === 'string' && txt.indexOf('jobCardList') !== -1){
+                                                tryPost({type:'api_response', url:self._reqUrl, body:txt});
+                                            }
+                                        }catch(e){}
+                                    }
+                                }catch(e){}
+                            });
+                            return send.apply(this, arguments);
+                        };
+                    })(XMLHttpRequest.prototype.send);
+                }catch(e){}
+            })();
+        )";
+        m_webview->AddScriptToExecuteOnDocumentCreated(preInject, nullptr);
+    }
+
     // 官方推荐：精准注册zhipin.com下所有请求的拦截器
     if (m_captureRequests && m_webview) {
         // 只拦截zhipin.com下所有资源类型
@@ -84,6 +143,12 @@ HRESULT WebView2BrowserWRL::OnControllerCompleted(HRESULT result, ICoreWebView2C
             [this](ICoreWebView2* sender, ICoreWebView2NavigationCompletedEventArgs* args) -> HRESULT {
                 return OnNavigationCompleted(sender, args);
             }).Get(), &m_navCompletedToken);
+    // 注册WebMessageReceived用于接收注入脚本通过 window.chrome.webview.postMessage 发送的数据
+    m_webview->add_WebMessageReceived(
+        Callback<ICoreWebView2WebMessageReceivedEventHandler>(
+            [this](ICoreWebView2* sender, ICoreWebView2WebMessageReceivedEventArgs* args) -> HRESULT {
+                return this->OnWebMessageReceived(sender, args);
+            }).Get(), &m_webMessageToken);
     // 导航
     m_webview->Navigate(m_pendingUrl.toStdWString().c_str());
     return S_OK;
@@ -120,42 +185,42 @@ HRESULT WebView2BrowserWRL::OnWebResourceRequested(ICoreWebView2* sender, ICoreW
     if (referer) refererStr = QString::fromWCharArray(referer.get());
     if (ua) uaStr = QString::fromWCharArray(ua.get());
 
-    // ----------- 关键：补全请求头仿真 -------------
-    // 只对主域请求(zhipin.com, bosszhipin.com, static.zhipin.com)补全
-    if (urlStr.contains("zhipin.com")) {
-        if (headers) {
-            // Accept
-            headers->SetHeader(L"Accept", L"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7");
-            // Accept-Language
-            headers->SetHeader(L"Accept-Language", L"zh-CN,zh;q=0.9");
-            // Priority
-            headers->SetHeader(L"Priority", L"u=0, i");
-            // sec-ch-ua
-            headers->SetHeader(L"sec-ch-ua", L"\"Google Chrome\";v=\"143\", \"Chromium\";v=\"143\", \"Not A(Brand\";v=\"24\"");
-            // sec-ch-ua-mobile
-            headers->SetHeader(L"sec-ch-ua-mobile", L"?0");
-            // sec-ch-ua-platform
-            headers->SetHeader(L"sec-ch-ua-platform", L"\"Windows\"");
-            // sec-fetch-dest
-            headers->SetHeader(L"sec-fetch-dest", L"document");
-            // sec-fetch-mode
-            headers->SetHeader(L"sec-fetch-mode", L"navigate");
-            // sec-fetch-site
-            headers->SetHeader(L"sec-fetch-site", L"same-origin");
-            // sec-fetch-user
-            headers->SetHeader(L"sec-fetch-user", L"?1");
-            // upgrade-insecure-requests
-            headers->SetHeader(L"upgrade-insecure-requests", L"1");
-            // referrer
-            if (!refererStr.isEmpty()) {
-                headers->SetHeader(L"Referer", reinterpret_cast<LPCWSTR>(refererStr.utf16()));
-            } else {
-                headers->SetHeader(L"Referer", L"https://www.zhipin.com/web/geek/jobs?city=101010100");
-            }
-            // credentials: include（WebView2自动处理cookie，headers中无需设置credentials字段）
-        }
-    }
-    // ------------------------------------------
+    // // ----------- 关键：补全请求头仿真 -------------
+    // // 只对主域请求(zhipin.com, bosszhipin.com, static.zhipin.com)补全
+    // if (urlStr.contains("zhipin.com")) {
+    //     if (headers) {
+    //         // Accept
+    //         headers->SetHeader(L"Accept", L"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7");
+    //         // Accept-Language
+    //         headers->SetHeader(L"Accept-Language", L"zh-CN,zh;q=0.9");
+    //         // Priority
+    //         headers->SetHeader(L"Priority", L"u=0, i");
+    //         // sec-ch-ua
+    //         headers->SetHeader(L"sec-ch-ua", L"\"Google Chrome\";v=\"143\", \"Chromium\";v=\"143\", \"Not A(Brand\";v=\"24\"");
+    //         // sec-ch-ua-mobile
+    //         headers->SetHeader(L"sec-ch-ua-mobile", L"?0");
+    //         // sec-ch-ua-platform
+    //         headers->SetHeader(L"sec-ch-ua-platform", L"\"Windows\"");
+    //         // sec-fetch-dest
+    //         headers->SetHeader(L"sec-fetch-dest", L"document");
+    //         // sec-fetch-mode
+    //         headers->SetHeader(L"sec-fetch-mode", L"navigate");
+    //         // sec-fetch-site
+    //         headers->SetHeader(L"sec-fetch-site", L"same-origin");
+    //         // sec-fetch-user
+    //         headers->SetHeader(L"sec-fetch-user", L"?1");
+    //         // upgrade-insecure-requests
+    //         headers->SetHeader(L"upgrade-insecure-requests", L"1");
+    //         // referrer
+    //         if (!refererStr.isEmpty()) {
+    //             headers->SetHeader(L"Referer", reinterpret_cast<LPCWSTR>(refererStr.utf16()));
+    //         } else {
+    //             headers->SetHeader(L"Referer", L"https://www.zhipin.com/web/geek/jobs?city=101010100");
+    //         }
+    //         // credentials: include（WebView2自动处理cookie，headers中无需设置credentials字段）
+    //     }
+    // }
+    // // ------------------------------------------
 
     // 输出更丰富的请求信息，便于调试和扩展
     QString info = QString("[请求捕捉] %1 %2\n  Referer: %3\n  UA: %4\n  Cookie: %5")
@@ -222,6 +287,51 @@ HRESULT WebView2BrowserWRL::OnNavigationCompleted(ICoreWebView2* sender, ICoreWe
         )";
         m_webview->ExecuteScript(patchJs, nullptr);
     }
+    // 注入fetch/XHR拦截脚本，在页面内捕获指定API响应并通过postMessage发回宿主
+    if (m_webview) {
+        const wchar_t* captureJs = LR"(
+            (function(){
+                try{
+                    function tryPost(msg){
+                        try{ if(window.chrome && window.chrome.webview && window.chrome.webview.postMessage){ window.chrome.webview.postMessage(JSON.stringify(msg)); } }catch(e){}
+                    }
+                    const target = 'api-c.liepin.com/api/com.liepin.searchfront4c.pc-search-job';
+                    const _fetch = window.fetch.bind(window);
+                    window.fetch = function() {
+                        return _fetch.apply(null, arguments).then(function(response){
+                            try{
+                                var url = (response && response.url) ? response.url : '';
+                                if(url.indexOf(target) !== -1){
+                                    response.clone().text().then(function(text){ tryPost({type:'api_response', url:url, body:text}); }).catch(function(){});
+                                }
+                            }catch(e){}
+                            return response;
+                        });
+                    };
+                    // XMLHttpRequest 兼容
+                    (function(open){
+                        XMLHttpRequest.prototype.open = function(method, url){
+                            this._reqUrl = url; return open.apply(this, arguments);
+                        };
+                    })(XMLHttpRequest.prototype.open);
+                    (function(send){
+                        XMLHttpRequest.prototype.send = function(){
+                            var self = this;
+                            this.addEventListener('readystatechange', function(){
+                                try{
+                                    if(self.readyState === 4 && self._reqUrl && self._reqUrl.indexOf('api-c.liepin.com/api/com.liepin.searchfront4c.pc-search-job') !== -1){
+                                        tryPost({type:'api_response', url:self._reqUrl, body:self.responseText});
+                                    }
+                                }catch(e){}
+                            });
+                            return send.apply(this, arguments);
+                        };
+                    })(XMLHttpRequest.prototype.send);
+                }catch(e){}
+            })();
+        )";
+        m_webview->ExecuteScript(captureJs, nullptr);
+    }
     // 模拟向下滚动页面，触发更多内容加载
     if (m_webview) {
         // 延迟1秒后滚动到底部
@@ -271,5 +381,51 @@ HRESULT WebView2BrowserWRL::OnGetCookiesCompleted(HRESULT errorCode, ICoreWebVie
         }
     }
     emit cookieFetched(pairs.join("; "));
+    return S_OK;
+}
+
+HRESULT WebView2BrowserWRL::OnWebMessageReceived(ICoreWebView2* sender, ICoreWebView2WebMessageReceivedEventArgs* args) {
+    if (!args) return S_OK;
+    wil::unique_cotaskmem_string msg;
+    if (SUCCEEDED(args->get_WebMessageAsJson(&msg)) && msg) {
+        QString jsonStr = QString::fromWCharArray(msg.get());
+        // If message is a quoted JSON string, unquote it
+        if (jsonStr.startsWith('"') && jsonStr.endsWith('"')) {
+            jsonStr = jsonStr.mid(1, jsonStr.length()-2);
+            jsonStr = jsonStr.replace("\\\"", "\"");
+        }
+        // Try parse into JSON object
+        QJsonDocument jd = QJsonDocument::fromJson(jsonStr.toUtf8());
+        if (jd.isObject()) {
+            QJsonObject jo = jd.object();
+            QString url;
+            QString body;
+            if (jo.contains("url")) url = jo.value("url").toString();
+            if (jo.contains("body")) body = jo.value("body").toString();
+            // If body appears escaped (contains JSON escape sequences), unescape common patterns
+            if (!body.isEmpty()) {
+                if (body.contains("\\\"") || body.contains("\\\\")) {
+                    QString un = body;
+                    un.replace("\\\\", "\\");
+                    un.replace("\\\"", "\"");
+                    un.replace("\\n", "\n");
+                    un.replace("\\r", "\r");
+                    un.replace("\\t", "\t");
+                    body = un;
+                }
+            }
+            // If after unescaping the body is itself JSON, normalize it
+            if (!body.isEmpty()) {
+                QJsonDocument inner = QJsonDocument::fromJson(body.toUtf8());
+                if (!inner.isNull()) {
+                    body = inner.toJson(QJsonDocument::Compact);
+                }
+            }
+            emit responseCaptured(url, body);
+        } else {
+            // fallback: emit raw
+            emit responseCaptured(QString(), jsonStr);
+        }
+    }
     return S_OK;
 }

@@ -64,6 +64,8 @@ set(NETWORK_SOURCES
         network/job_crawler_printer.cpp
         network/crawl_nowcode.h
         network/crawl_nowcode.cpp
+        network/crawl_liepin.h
+        network/crawl_liepin.cpp
         network/crawl_chinahr.h
         network/crawl_chinahr.cpp
         network/crawl_zhipin.h
