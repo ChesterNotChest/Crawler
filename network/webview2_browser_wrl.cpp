@@ -10,8 +10,8 @@
 #include <wrl.h>
 #include "wil/com.h"
 #include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonValue>
+#include <QDateTime>
+#include <QFile>
 
 using namespace Microsoft::WRL;
 
@@ -77,7 +77,7 @@ HRESULT WebView2BrowserWRL::OnControllerCompleted(HRESULT result, ICoreWebView2C
             (function(){
                 try{
                     function tryPost(msg){
-                        try{ if(window.chrome && window.chrome.webview && window.chrome.webview.postMessage){ window.chrome.webview.postMessage(JSON.stringify(msg)); } }catch(e){}
+                        try{ if(window.chrome && window.chrome.webview && window.chrome.webview.postMessage){ window.chrome.webview.postMessage(msg); } }catch(e){}
                     }
                     const target = 'api-c.liepin.com/api/com.liepin.searchfront4c.pc-search-job';
                     const _fetch = window.fetch.bind(window);
@@ -293,7 +293,7 @@ HRESULT WebView2BrowserWRL::OnNavigationCompleted(ICoreWebView2* sender, ICoreWe
             (function(){
                 try{
                     function tryPost(msg){
-                        try{ if(window.chrome && window.chrome.webview && window.chrome.webview.postMessage){ window.chrome.webview.postMessage(JSON.stringify(msg)); } }catch(e){}
+                        try{ if(window.chrome && window.chrome.webview && window.chrome.webview.postMessage){ window.chrome.webview.postMessage(msg); } }catch(e){}
                     }
                     const target = 'api-c.liepin.com/api/com.liepin.searchfront4c.pc-search-job';
                     const _fetch = window.fetch.bind(window);
@@ -388,44 +388,12 @@ HRESULT WebView2BrowserWRL::OnWebMessageReceived(ICoreWebView2* sender, ICoreWeb
     if (!args) return S_OK;
     wil::unique_cotaskmem_string msg;
     if (SUCCEEDED(args->get_WebMessageAsJson(&msg)) && msg) {
+        // Emit the received JSON (as-is) to the listeners without any unquoting or parsing.
         QString jsonStr = QString::fromWCharArray(msg.get());
-        // If message is a quoted JSON string, unquote it
-        if (jsonStr.startsWith('"') && jsonStr.endsWith('"')) {
-            jsonStr = jsonStr.mid(1, jsonStr.length()-2);
-            jsonStr = jsonStr.replace("\\\"", "\"");
-        }
-        // Try parse into JSON object
-        QJsonDocument jd = QJsonDocument::fromJson(jsonStr.toUtf8());
-        if (jd.isObject()) {
-            QJsonObject jo = jd.object();
-            QString url;
-            QString body;
-            if (jo.contains("url")) url = jo.value("url").toString();
-            if (jo.contains("body")) body = jo.value("body").toString();
-            // If body appears escaped (contains JSON escape sequences), unescape common patterns
-            if (!body.isEmpty()) {
-                if (body.contains("\\\"") || body.contains("\\\\")) {
-                    QString un = body;
-                    un.replace("\\\\", "\\");
-                    un.replace("\\\"", "\"");
-                    un.replace("\\n", "\n");
-                    un.replace("\\r", "\r");
-                    un.replace("\\t", "\t");
-                    body = un;
-                }
-            }
-            // If after unescaping the body is itself JSON, normalize it
-            if (!body.isEmpty()) {
-                QJsonDocument inner = QJsonDocument::fromJson(body.toUtf8());
-                if (!inner.isNull()) {
-                    body = inner.toJson(QJsonDocument::Compact);
-                }
-            }
-            emit responseCaptured(url, body);
-        } else {
-            // fallback: emit raw
-            emit responseCaptured(QString(), jsonStr);
-        }
+
+        // Do not persist captured messages to disk (disabled per request).
+        qDebug() << "[WebView2BrowserWRL] Received web message length:" << jsonStr.length();
+        emit responseCaptured(QString(), jsonStr);
     }
     return S_OK;
 }

@@ -156,13 +156,38 @@ std::pair<std::vector<JobInfo>, MappingData> InternetTask::crawlAll(int pageNo, 
     
     std::vector<JobInfo> allJobs;
     MappingData mergedMapping;
-    
+    // 1) 优先尝试 Liepin（同步）
+    bool liepinInitialFailed = false;
+    auto [liepinJobs, liepinMapping] = fetchBySource("liepin", pageNo, pageSize, InternetTask::DEFAULT_RECRUIT_TYPE);
+    if (liepinJobs.empty()) {
+        qDebug() << "[InternetTask] Liepin 初次尝试未返回数据，稍后重试";
+        liepinInitialFailed = true;
+    } else {
+        allJobs.insert(allJobs.end(), liepinJobs.begin(), liepinJobs.end());
+        mergedMapping.type_list.insert(
+            mergedMapping.type_list.end(),
+            liepinMapping.type_list.begin(),
+            liepinMapping.type_list.end()
+        );
+        mergedMapping.area_list.insert(
+            mergedMapping.area_list.end(),
+            liepinMapping.area_list.begin(),
+            liepinMapping.area_list.end()
+        );
+        mergedMapping.salary_level_list.insert(
+            mergedMapping.salary_level_list.end(),
+            liepinMapping.salary_level_list.begin(),
+            liepinMapping.salary_level_list.end()
+        );
+    }
+
+    // 2) 爬取其他数据源（作为回退和补充）
     // 爬取牛客网（校招、实习、社招）
     std::vector<int> recruitTypes = {1, 2, 3};
     for (int recruitType : recruitTypes) {
         auto [jobs, mapping] = NowcodeCrawler::crawlNowcode(pageNo, pageSize, recruitType);
         allJobs.insert(allJobs.end(), jobs.begin(), jobs.end());
-        
+
         // 合并映射数据
         mergedMapping.type_list.insert(
             mergedMapping.type_list.end(),
@@ -180,12 +205,10 @@ std::pair<std::vector<JobInfo>, MappingData> InternetTask::crawlAll(int pageNo, 
             mapping.salary_level_list.end()
         );
     }
-    
+
     // 爬取BOSS直聘
     auto [zhipinJobs, zhipinMapping] = ZhipinCrawler::crawlZhipin(pageNo, pageSize);
     allJobs.insert(allJobs.end(), zhipinJobs.begin(), zhipinJobs.end());
-    
-    // 合并BOSS直聘数据
     mergedMapping.type_list.insert(
         mergedMapping.type_list.end(),
         zhipinMapping.type_list.begin(),
@@ -201,7 +224,36 @@ std::pair<std::vector<JobInfo>, MappingData> InternetTask::crawlAll(int pageNo, 
         zhipinMapping.salary_level_list.begin(),
         zhipinMapping.salary_level_list.end()
     );
-    
+
+    // 3) 如果 Liepin 初次失败，则在其他来源爬取完成后重试一次 Liepin
+    if (liepinInitialFailed) {
+        qDebug() << "[InternetTask] 对 Liepin 进行一次重试";
+        auto [liepinRetryJobs, liepinRetryMapping] = fetchBySource("liepin", pageNo, pageSize, InternetTask::DEFAULT_RECRUIT_TYPE);
+        if (liepinRetryJobs.empty()) {
+            qDebug() << "[InternetTask] Liepin 重试仍然失败，加入永久 hault 列表:" << pageNo;
+            // 记录永久挂起的页码
+            halted_pages_["liepin"].push_back(pageNo);
+        } else {
+            qDebug() << "[InternetTask] Liepin 重试成功，合并结果";
+            allJobs.insert(allJobs.end(), liepinRetryJobs.begin(), liepinRetryJobs.end());
+            mergedMapping.type_list.insert(
+                mergedMapping.type_list.end(),
+                liepinRetryMapping.type_list.begin(),
+                liepinRetryMapping.type_list.end()
+            );
+            mergedMapping.area_list.insert(
+                mergedMapping.area_list.end(),
+                liepinRetryMapping.area_list.begin(),
+                liepinRetryMapping.area_list.end()
+            );
+            mergedMapping.salary_level_list.insert(
+                mergedMapping.salary_level_list.end(),
+                liepinRetryMapping.salary_level_list.begin(),
+                liepinRetryMapping.salary_level_list.end()
+            );
+        }
+    }
+
     qDebug() << "[InternetTask] 所有数据源爬取完成，总计" << allJobs.size() << "条职位数据";
     
     return {allJobs, mergedMapping};

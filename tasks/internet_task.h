@@ -2,6 +2,7 @@
 #define INTERNET_TASK_H
 
 #include <vector>
+#include <map>
 #include <string>
 #include "network/job_crawler.h"
 #include "network/crawl_nowcode.h"
@@ -63,11 +64,15 @@ public:
      * @return 所有数据源的JobInfo列表和合并的映射数据
      */
     std::pair<std::vector<JobInfo>, MappingData> crawlAll(int pageNo, int pageSize);
+    // 返回被永久挂起（hault）的数据源及其失败页码
+    const std::map<std::string, std::vector<int>>& getHaltedPages() const { return halted_pages_; }
     
 private:
     // 爬虫配置参数可以在这里管理
     static constexpr int DEFAULT_PAGE_SIZE = 15;
     static constexpr int DEFAULT_RECRUIT_TYPE = 1; // 校招
+    // 记录被永久挂起的源与失败页码
+    std::map<std::string, std::vector<int>> halted_pages_;
 };
 
 #endif // INTERNET_TASK_H

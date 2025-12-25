@@ -21,7 +21,7 @@ int CrawlerTask::crawlAll(int maxPagesPerSource, int pageSize) {
     // std::vector<std::string> sources = {"nowcode", "zhipin", "chinahr", "liepin"};
     std::vector<std::string> sources = {"liepin"};
     // 控制是否在页间暂停，以及哪些来源需要暂停（可按需修改）
-    std::vector<std::string> pauseSources = { "zhipin" };
+    std::vector<std::string> pauseSources = { "zhipin", "liepin" };
     for (const auto& src : sources) {
         qDebug() << "[CrawlerTask] 开始来源:" << src.c_str();
         m_internetTask.updateCookieBySource(src);
