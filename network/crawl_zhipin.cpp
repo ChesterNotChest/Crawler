@@ -98,7 +98,7 @@ std::pair<std::vector<JobInfo>, MappingData> parseZhipinResponse(const json& jso
         
         for (const auto& job_item : job_array) {
             try {
-                JobInfo job;
+                JobInfo job{};
                 
                 // 基本信息
                 if (job_item.contains("encryptJobId")) {

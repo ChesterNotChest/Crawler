@@ -66,6 +66,8 @@ set(NETWORK_SOURCES
         network/crawl_nowcode.cpp
         network/crawl_liepin.h
         network/crawl_liepin.cpp
+        network/crawl_wuyi.h
+        network/crawl_wuyi.cpp
         network/crawl_chinahr.h
         network/crawl_chinahr.cpp
         network/crawl_zhipin.h

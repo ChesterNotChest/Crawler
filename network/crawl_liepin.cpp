@@ -134,6 +134,8 @@ std::pair<std::vector<JobInfo>, MappingData> LiepinCrawler::crawlLiepin(int page
         QJsonObject job = item.value("job").toObject();
 
         JobInfo ji{};
+        // default recruit type to 社招 (3) unless present
+        ji.type_id = job.value("jobType").toInt(3);
         // title, id
         ji.info_name = job.value("title").toString().toStdString();
         QString jobIdStr = job.value("jobId").toString();

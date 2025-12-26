@@ -20,6 +20,8 @@ public:
 
     // 启用/禁用请求捕捉
     void enableRequestCapture(bool enable);
+    // 尝试在页面上点击下一页按钮（如存在 class="btn-next"）
+    void clickNext();
 
 signals:
     void cookieFetched(const QString& cookies);

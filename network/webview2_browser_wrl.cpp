@@ -79,16 +79,18 @@ HRESULT WebView2BrowserWRL::OnControllerCompleted(HRESULT result, ICoreWebView2C
                     function tryPost(msg){
                         try{ if(window.chrome && window.chrome.webview && window.chrome.webview.postMessage){ window.chrome.webview.postMessage(msg); } }catch(e){}
                     }
-                    const target = 'api-c.liepin.com/api/com.liepin.searchfront4c.pc-search-job';
+                    // capture both Liepin and 51job search API responses
+                    const targetA = 'api-c.liepin.com/api/com.liepin.searchfront4c.pc-search-job';
+                    const targetB = 'we.51job.com/api/job';
                     const _fetch = window.fetch.bind(window);
                     window.fetch = function() {
                         return _fetch.apply(null, arguments).then(function(response){
                             try{
                                 var url = (response && response.url) ? response.url : '';
-                                if(url.indexOf(target) !== -1){
+                                if(url.indexOf(targetA) !== -1 || url.indexOf(targetB) !== -1){
                                     response.clone().text().then(function(text){
                                         try{
-                                            if(typeof text === 'string' && text.indexOf('jobCardList') !== -1){
+                                            if(typeof text === 'string' && (text.indexOf('jobCardList') !== -1 || text.indexOf('resultbody') !== -1)){
                                                 tryPost({type:'api_response', url:url, body:text});
                                             }
                                         }catch(e){}
@@ -108,10 +110,10 @@ HRESULT WebView2BrowserWRL::OnControllerCompleted(HRESULT result, ICoreWebView2C
                             var self = this;
                             this.addEventListener('readystatechange', function(){
                                 try{
-                                    if(self.readyState === 4 && self._reqUrl && self._reqUrl.indexOf('api-c.liepin.com/api/com.liepin.searchfront4c.pc-search-job') !== -1){
+                                    if(self.readyState === 4 && self._reqUrl && (self._reqUrl.indexOf('api-c.liepin.com/api/com.liepin.searchfront4c.pc-search-job') !== -1 || self._reqUrl.indexOf('we.51job.com/api/job/search-pc') !== -1)){
                                         try{
                                             var txt = self.responseText || '';
-                                            if(typeof txt === 'string' && txt.indexOf('jobCardList') !== -1){
+                                            if(typeof txt === 'string' && (txt.indexOf('jobCardList') !== -1 || txt.indexOf('resultbody') !== -1)){
                                                 tryPost({type:'api_response', url:self._reqUrl, body:txt});
                                             }
                                         }catch(e){}
@@ -129,8 +131,9 @@ HRESULT WebView2BrowserWRL::OnControllerCompleted(HRESULT result, ICoreWebView2C
 
     // 官方推荐：精准注册zhipin.com下所有请求的拦截器
     if (m_captureRequests && m_webview) {
-        // 只拦截zhipin.com下所有资源类型
+        // 只拦截 zhipin.com 和 we.51job.com 下的所有资源类型，便于获取请求头/调试
         m_webview->AddWebResourceRequestedFilter(L"https://www.zhipin.com/*", COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL);
+        m_webview->AddWebResourceRequestedFilter(L"https://we.51job.com/*", COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL);
         m_webview->add_WebResourceRequested(
             Callback<ICoreWebView2WebResourceRequestedEventHandler>(
                 [this](ICoreWebView2* sender, ICoreWebView2WebResourceRequestedEventArgs* args) -> HRESULT {
@@ -295,14 +298,21 @@ HRESULT WebView2BrowserWRL::OnNavigationCompleted(ICoreWebView2* sender, ICoreWe
                     function tryPost(msg){
                         try{ if(window.chrome && window.chrome.webview && window.chrome.webview.postMessage){ window.chrome.webview.postMessage(msg); } }catch(e){}
                     }
-                    const target = 'api-c.liepin.com/api/com.liepin.searchfront4c.pc-search-job';
+                    const targetA = 'api-c.liepin.com/api/com.liepin.searchfront4c.pc-search-job';
+                    const targetB = 'we.51job.com/api/job/search-pc';
                     const _fetch = window.fetch.bind(window);
                     window.fetch = function() {
                         return _fetch.apply(null, arguments).then(function(response){
                             try{
                                 var url = (response && response.url) ? response.url : '';
-                                if(url.indexOf(target) !== -1){
-                                    response.clone().text().then(function(text){ tryPost({type:'api_response', url:url, body:text}); }).catch(function(){});
+                                if(url.indexOf(targetA) !== -1 || url.indexOf(targetB) !== -1){
+                                    response.clone().text().then(function(text){
+                                        try{
+                                            if(typeof text === 'string' && (text.indexOf('jobCardList') !== -1 || text.indexOf('resultbody') !== -1)){
+                                                tryPost({type:'api_response', url:url, body:text});
+                                            }
+                                        }catch(e){}
+                                    }).catch(function(){});
                                 }
                             }catch(e){}
                             return response;
@@ -339,6 +349,23 @@ HRESULT WebView2BrowserWRL::OnNavigationCompleted(ICoreWebView2* sender, ICoreWe
             webview->ExecuteScript(L"window.scrollTo(0, document.body.scrollHeight);", nullptr);
         });
     }
+
+    // 定义一个全局方法以便外部触发下一页点击（wuyi 使用按钮翻页）
+    if (m_webview) {
+        const wchar_t* defineClickNext = LR"(
+            (function(){
+                try{
+                    window.__clickNext = function(){
+                        var btn = document.querySelector('.btn-next');
+                        if(btn){ try{ btn.click(); return true; }catch(e){return false;} }
+                        return false;
+                    };
+                }catch(e){}
+            })();
+        )";
+        m_webview->ExecuteScript(defineClickNext, nullptr);
+    }
+
     // 获取CookieManager
     wil::com_ptr<ICoreWebView2_2> webview2;
     sender->QueryInterface(IID_ICoreWebView2_2, reinterpret_cast<void**>(webview2.put()));
@@ -382,6 +409,19 @@ HRESULT WebView2BrowserWRL::OnGetCookiesCompleted(HRESULT errorCode, ICoreWebVie
     }
     emit cookieFetched(pairs.join("; "));
     return S_OK;
+}
+
+// 实现 clickNext 为类成员（放在全局实现区域，避免嵌套定义）
+void WebView2BrowserWRL::clickNext() {
+    if (!m_webview) return;
+    const wchar_t* call = LR"((function(){try{ if(window.__clickNext) return window.__clickNext(); return false;}catch(e){return false;}})())";
+    m_webview->ExecuteScript(call,
+        Callback<ICoreWebView2ExecuteScriptCompletedHandler>(
+            [](HRESULT errorCode, LPCWSTR result) -> HRESULT {
+                QString res = result ? QString::fromWCharArray(result) : QString();
+                qDebug() << "[WebView2BrowserWRL] clickNext() result:" << res << " err:" << errorCode;
+                return S_OK;
+            }).Get());
 }
 
 HRESULT WebView2BrowserWRL::OnWebMessageReceived(ICoreWebView2* sender, ICoreWebView2WebMessageReceivedEventArgs* args) {

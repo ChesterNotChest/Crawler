@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <cstdint>
+#include <unordered_map>
 
 /**
  * @file network_types.h
@@ -89,5 +90,13 @@ inline const std::vector<std::string> ZHIPIN_CITY_LIST = {
     "101270100",
     "101180100",
     "101040100"
+};
+// 全局数据源 ID 映射（用于在不同模块中保持一致的 sourceId）
+inline const std::unordered_map<std::string,int> SOURCE_ID_MAP = {
+    {"nowcode", 1},
+    {"zhipin", 2},
+    {"chinahr", 3},
+    {"liepin", 4},
+    {"wuyi", 5}
 };
 #endif // NETWORK_TYPES_H

@@ -8,6 +8,10 @@
 #include "network/crawl_nowcode.h"
 #include "network/crawl_zhipin.h"
 #include "network/crawl_chinahr.h"
+#include "network/crawl_wuyi.h"
+#include "network/webview2_browser_wrl.h"
+#include "network/crawl_liepin.h"
+#include "config/config_manager.h"
 
 /**
  * @brief InternetTask - 负责网络爬虫操作
@@ -48,6 +52,11 @@ public:
     std::pair<std::vector<JobInfo>, MappingData> fetchBySource(
         const std::string& sourceCode, int pageNo, int pageSize, int recruitType = DEFAULT_RECRUIT_TYPE,
         const std::string& city = "");
+
+    // 同步版本：为需要保持会话的来源（如 wuyi）提供一个能传入外部 WebView2 实例的重载
+    std::pair<std::vector<JobInfo>, MappingData> fetchBySource(
+        const std::string& sourceCode, int pageNo, int pageSize, WebView2BrowserWRL* browser,
+        int recruitType = DEFAULT_RECRUIT_TYPE, const std::string& city = "");
 
     /**
      * @brief 根据数据源执行Cookie更新（使用WebView2等方式），并将结果写入config.json

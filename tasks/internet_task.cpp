@@ -9,9 +9,6 @@
 #include <QJsonObject>
 #include <QCoreApplication>
 #include <QDate>
-#include "network/webview2_browser_wrl.h"
-#include "network/crawl_liepin.h"
-#include "config/config_manager.h"
 
 InternetTask::InternetTask() {
     // 构造函数，未来可以在这里初始化配置
@@ -45,8 +42,23 @@ std::pair<std::vector<JobInfo>, MappingData> InternetTask::fetchBySource(
         } else if (sourceCode == "liepin") {
             // 使用 WebView2 注入脚本捕获 liepin 后台API响应；当前不会做parser，先捕获原始JSON并生成映射建议供人工确认
             return LiepinCrawler::crawlLiepin(pageNo, pageSize, city);
+        } else if (sourceCode == "wuyi") {
+            return WuyiCrawler::crawlWuyi(pageNo, pageSize, city);
     } else {
         qDebug() << "[错误] 未知的数据源:" << sourceCode.c_str();
+        return {{}, {}};
+    }
+}
+
+std::pair<std::vector<JobInfo>, MappingData> InternetTask::fetchBySource(
+    const std::string& sourceCode, int pageNo, int pageSize, WebView2BrowserWRL* browser,
+    int recruitType, const std::string& city) {
+
+    qDebug() << "[InternetTask] (browser) 按来源爬取:" << sourceCode.c_str() << ", 页码:" << pageNo;
+    if (sourceCode == "wuyi") {
+        return WuyiCrawler::crawlWuyi(pageNo, pageSize, city, browser);
+    } else {
+        qDebug() << "[InternetTask] (browser) 未实现的带浏览器的来源:" << sourceCode.c_str();
         return {{}, {}};
     }
 }

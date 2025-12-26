@@ -2,6 +2,10 @@
 #include <QDebug>
 #include <QThread>
 #include <algorithm>
+#include <QString>
+#include <memory>
+#include "network/webview2_browser_wrl.h"
+#include "constants/network_types.h"
 
 CrawlerTask::CrawlerTask(SQLInterface *sqlInterface)
     : m_internetTask(),
@@ -18,13 +22,27 @@ int CrawlerTask::crawlAll(int maxPagesPerSource, int pageSize) {
     int totalStored = 0;
 
     // 数据源顺序：nowcode -> zhipin
-    // std::vector<std::string> sources = {"nowcode", "zhipin", "chinahr", "liepin"};
-    std::vector<std::string> sources = {"liepin"};
+    // std::vector<std::string> sources = {"nowcode", "zhipin", "chinahr", "liepin", "wuyi"};
+    std::vector<std::string> sources = {"liepin", "nowcode", "zhipin", "chinahr",  "wuyi"};
     // 控制是否在页间暂停，以及哪些来源需要暂停（可按需修改）
-    std::vector<std::string> pauseSources = { "zhipin", "liepin" };
+    std::vector<std::string> pauseSources = { "zhipin", "liepin", "wuyi" };
     for (const auto& src : sources) {
         qDebug() << "[CrawlerTask] 开始来源:" << src.c_str();
         m_internetTask.updateCookieBySource(src);
+
+        // sourceId mapping is provided by constants/network_types.h
+
+        // For session-based sources like wuyi, create a persistent WebView2 browser instance
+        std::unique_ptr<WebView2BrowserWRL> sessionBrowser;
+        if (src == "wuyi") {
+            sessionBrowser.reset(new WebView2BrowserWRL());
+            sessionBrowser->enableRequestCapture(true);
+            // Navigate to the list page to initialize session (city may be empty)
+            QString initUrl = QLatin1String("https://we.51job.com/pc/search");
+            sessionBrowser->fetchCookies(initUrl);
+            // give the page a moment to initialize before the first capture
+            QThread::sleep(1);
+        }
 
         // 若为 nowcode，则初始化 recruitType 列表（1-3）并使用索引切换
         size_t recruitIndex = 0;
@@ -50,7 +68,13 @@ int CrawlerTask::crawlAll(int maxPagesPerSource, int pageSize) {
 
             qDebug() << "[CrawlerTask] 来源" << src.c_str() << "城市" << currentCity.c_str()
                      << "类型" << currentRecruitType << "第" << page << "页开始抓取...";
-            auto [jobs, mapping] = m_internetTask.fetchBySource(src, page, pageSize, currentRecruitType, currentCity);
+            std::pair<std::vector<JobInfo>, MappingData> res;
+            if (src == "wuyi") {
+                res = m_internetTask.fetchBySource(src, page, pageSize, sessionBrowser.get(), currentRecruitType, currentCity);
+            } else {
+                res = m_internetTask.fetchBySource(src, page, pageSize, currentRecruitType, currentCity);
+            }
+            auto [jobs, mapping] = res;
 
             // 任意来源遇到反爬码37则更新cookie并重试一次
             if (mapping.last_api_code == 37) {
@@ -65,7 +89,9 @@ int CrawlerTask::crawlAll(int maxPagesPerSource, int pageSize) {
             }
 
             if (!jobs.empty()) {
-                int sourceId = (src == "nowcode") ? 1 : 2;
+                int sourceId = 0;
+                auto it = SOURCE_ID_MAP.find(src);
+                if (it != SOURCE_ID_MAP.end()) sourceId = it->second;
                 int stored = m_sqlTask.storeJobDataBatchWithSource(jobs, sourceId);
                 totalStored += stored;
                 qDebug() << "[CrawlerTask] 来源" << src.c_str() << "第" << page << "页存储" << stored << "条";
@@ -76,6 +102,19 @@ int CrawlerTask::crawlAll(int maxPagesPerSource, int pageSize) {
             // 只有当 doPause 为 true 且当前来源在 pauseSources 列表中时才等待
             if (std::find(pauseSources.begin(), pauseSources.end(), src) != pauseSources.end()) {
                 QThread::sleep(3);
+            }
+
+            // For wuyi, trigger the in-page next button after processing this page
+            if (src == "wuyi") {
+                // If has_more is false, do not click next
+                if (mapping.has_more) {
+                    qDebug() << "[CrawlerTask] wuyi: clicking next page button in session browser";
+                    if (sessionBrowser) sessionBrowser->clickNext();
+                    // small pause to allow page to fire requests
+                    QThread::sleep(1);
+                } else {
+                    qDebug() << "[CrawlerTask] wuyi: no more pages according to mapping.has_more";
+                }
             }
 
             // 终止条件统一由 has_more 控制；当 has_more == false 时：
