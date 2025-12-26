@@ -34,7 +34,6 @@ int main(int argc, char *argv[])
     // ========== 集成测试 ==========
     qDebug() << "\n========== INTEGRATION TEST ==========\n";
     qDebug() << "CrawlerTask 集成测试 - Crawler侧完整工作流";
-    //test_crawler_task_integration();
     test_batch_crawl();
 
     // 启动GUI应用
