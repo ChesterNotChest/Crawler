@@ -1,0 +1,18 @@
+大模型python后端程序与c++爬虫工具数据传输产品要求：
+
+一·格式传输
+c++程序会传递类似于
+json:
+{
+{[
+{
+ "jobId": 1234,
+"info": "xxxxxxxxxxxxxx"
+},
+ {"jobId": 1234,
+"info": "xxxxxxxxxxxxxx"
+},
+........
+]
+}
+之类的json数据，要求程序能够

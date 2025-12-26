@@ -1,0 +1,9 @@
+2025-12-26 18:25:38,564 - YuxianAI - INFO - 认证管理器初始化成功
+2025-12-26 18:25:38,564 - YuxianAI - INFO - 向量存储初始化成功
+2025-12-26 18:25:38,564 - YuxianAI - INFO - Brain初始化开始
+2025-12-26 18:25:38,564 - YuxianAI - INFO - 对话历史文件不存在，创建新的历史记录
+2025-12-26 18:26:11,467 - YuxianAI - INFO - 嵌入模型 paraphrase-multilingual-MiniLM-L12-v2 加载成功
+2025-12-26 18:26:11,467 - YuxianAI - INFO - 向量索引文件不存在，创建新的索引
+2025-12-26 18:26:11,467 - YuxianAI - INFO - 向量存储初始化完成
+2025-12-26 18:26:11,467 - YuxianAI - INFO - Brain初始化成功
+2025-12-26 18:26:11,470 - YuxianAI - INFO - 内容生成器初始化成功
