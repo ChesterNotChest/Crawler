@@ -16,7 +16,7 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets Sql Network)
 set(THIRD_PARTY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include")
 set(CURL_DIR "${THIRD_PARTY_DIR}/curl-8.17.0_5-win64-mingw")
 set(NLOHMANN_JSON_DIR "${THIRD_PARTY_DIR}/nlohmann-json-develop")
-# WebView2 SDK（可选，Windows专用，MinGW不链接静态库，仅用于头文件）
+# WebView2 SDK
 set(WEBVIEW2_SDK_DIR "${THIRD_PARTY_DIR}/WebView2SDK")
 set(WEBVIEW2_INCLUDE_DIR "${WEBVIEW2_SDK_DIR}/build/native/include")
 set(WEBVIEW2_RUNTIME_DLL "${WEBVIEW2_SDK_DIR}/runtimes/win-x64/native/WebView2Loader.dll")
@@ -80,8 +80,6 @@ set(NETWORK_SOURCES
         network/crawl_chinahr.cpp
         network/crawl_zhipin.h
         network/crawl_zhipin.cpp
-        # network/webview2_browser.h (已废弃)
-        # network/webview2_browser.cpp (已废弃)
         network/webview2_browser_wrl.h
         network/webview2_browser_wrl.cpp
 )
@@ -92,17 +90,10 @@ set(TEST_SOURCES
         # 单元测试
         test/test_internet_task.cpp
         test/test_sql_task.cpp
-        # 集成测试
-        test/test_crawler_task.cpp
         # Cookie获取测试
-        # test/test_webview2_cookie.cpp (已废弃)
         test/test_webview2_cookie_wrl.cpp
         # 批量爬取集成测试
         test/test_batch_crawl.cpp
-        # [Deprecated] 以下测试已被新架构替代，可删除
-        # test/test_sql.cpp
-        # test/test_job_crawler.cpp
-        # test/test_integration.cpp
 )
 
 # （注意：复制WebView2运行时DLL的命令需要在目标创建之后再执行）
