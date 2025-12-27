@@ -1,7 +1,6 @@
 #include "sql_task.h"
 #include <QDebug>
 #include <unordered_set>
-#include <algorithm>
 
 SqlTask::SqlTask(SQLInterface *sqlInterface)
     : m_sqlInterface(sqlInterface) {}
@@ -280,4 +279,9 @@ bool SqlTask::insertJobTagMapping(long long jobId, int tagId) {
 QVector<SQLNS::JobInfo> SqlTask::queryAllJobs() {
     if (!m_sqlInterface) return {};
     return m_sqlInterface->queryAllJobs();
+}
+
+QVector<SQLNS::JobInfoPrint> SqlTask::queryAllJobsPrint() {
+    if (!m_sqlInterface) return {};
+    return m_sqlInterface->queryAllJobsPrint();
 }

@@ -483,5 +483,85 @@ QVector<SQLNS::JobInfo> SQLInterface::queryAllJobs() {
 
 		jobs.append(job);
 	}
+
+	
+	return jobs;
+}
+
+QVector<SQLNS::JobInfoPrint> SQLInterface::queryAllJobsPrint() {
+	QVector<SQLNS::JobInfoPrint> jobs;
+	if (!isConnected()) return jobs;
+	const QString connName = QStringLiteral("crawler_conn");
+	QSqlDatabase db = QSqlDatabase::database(connName);
+	QSqlQuery q(db);
+	if (!q.exec("SELECT jobId, jobName, companyId, recruitTypeId, cityId, sourceId, requirements, "
+				"salaryMin, salaryMax, salarySlabId, createTime, updateTime, hrLastLoginTime "
+				"FROM Job ORDER BY jobId ASC")) {
+		qDebug() << "Select Job failed:" << q.lastError().text();
+		return jobs;
+	}
+	while (q.next()) {
+		SQLNS::JobInfoPrint job;
+		job.jobId = q.value(0).toLongLong();
+		job.jobName = q.value(1).toString();
+		job.companyId = q.value(2).toInt();
+		job.recruitTypeId = q.value(3).toInt();
+		job.cityId = q.value(4).toInt();
+		job.sourceId = q.value(5).toInt();
+		job.requirements = q.value(6).toString();
+		job.salaryMin = q.value(7).toDouble();
+		job.salaryMax = q.value(8).toDouble();
+		job.salarySlabId = q.value(9).toInt();
+		job.createTime = q.value(10).toString();
+		job.updateTime = q.value(11).toString();
+		job.hrLastLoginTime = q.value(12).toString();
+
+		// Resolve company name
+		QSqlQuery qc(db);
+		qc.prepare("SELECT companyName FROM Company WHERE companyId = :id");
+		qc.bindValue(":id", job.companyId);
+		if (qc.exec() && qc.next()) {
+			job.companyName = qc.value(0).toString();
+		}
+
+		// Resolve recruit type name
+		QSqlQuery qr(db);
+		qr.prepare("SELECT typeName FROM RecruitType WHERE recruitTypeId = :id");
+		qr.bindValue(":id", job.recruitTypeId);
+		if (qr.exec() && qr.next()) {
+			job.recruitTypeName = qr.value(0).toString();
+		}
+
+		// Resolve city name
+		QSqlQuery qcity(db);
+		qcity.prepare("SELECT cityName FROM JobCity WHERE cityId = :id");
+		qcity.bindValue(":id", job.cityId);
+		if (qcity.exec() && qcity.next()) {
+			job.cityName = qcity.value(0).toString();
+		}
+
+		// Resolve source info
+		QSqlQuery qs(db);
+		qs.prepare("SELECT sourceName FROM Source WHERE sourceId = :id");
+		qs.bindValue(":id", job.sourceId);
+		if (qs.exec() && qs.next()) {
+			job.sourceName = qs.value(0).toString();
+		}
+
+		// Query tags (IDs and names)
+		QSqlQuery tagQuery(db);
+		tagQuery.prepare("SELECT t.tagId, t.tagName FROM JobTag t "
+						 "JOIN JobTagMapping m ON t.tagId = m.tagId "
+						 "WHERE m.jobId = :jobId");
+		tagQuery.bindValue(":jobId", job.jobId);
+		if (tagQuery.exec()) {
+			while (tagQuery.next()) {
+				job.tagIds.append(tagQuery.value(0).toInt());
+				job.tagNames.append(tagQuery.value(1).toString());
+			}
+		}
+
+		jobs.append(job);
+	}
 	return jobs;
 }

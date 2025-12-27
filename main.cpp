@@ -1,4 +1,4 @@
-#include "mainwindow.h"
+#include "cppGUI/launcherwindow.h"
 #include "test/test.h"
 #include "config/config_manager.h"
 
@@ -34,11 +34,12 @@ int main(int argc, char *argv[])
     // ========== 集成测试 ==========
     qDebug() << "\n========== INTEGRATION TEST ==========\n";
     qDebug() << "CrawlerTask 集成测试 - Crawler侧完整工作流";
-    test_batch_crawl();
+    //test_crawler_task_integration();
+    // test_batch_crawl();
 
     // 启动GUI应用
     qDebug() << "\n========== Launching GUI ==========";
-    MainWindow w;
+    LauncherWindow w;
     w.show();
     return a.exec();
 }
