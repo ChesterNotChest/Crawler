@@ -54,6 +54,11 @@ set(PROJECT_SOURCES
         tasks/internet_task.cpp
         tasks/crawler_task.h
         tasks/crawler_task.cpp
+        presenter/presenter_utils.cpp
+        presenter/presenter_sort.cpp
+        presenter/presenter_mask.cpp
+        presenter/presenter_main.cpp
+        tasks/presenter_task.cpp
         tasks/ai_transfer_task.h
         tasks/ai_transfer_task.cpp
         tasks/backend_manager_task.h
@@ -94,6 +99,8 @@ set(TEST_SOURCES
         test/test_webview2_cookie_wrl.cpp
         # 批量爬取集成测试
         test/test_batch_crawl.cpp
+        # Presenter 层集成测试
+        test/test_presenter_task.cpp
 )
 
 # （注意：复制WebView2运行时DLL的命令需要在目标创建之后再执行）

@@ -34,8 +34,12 @@ int main(int argc, char *argv[])
     // ========== 集成测试 ==========
     qDebug() << "\n========== INTEGRATION TEST ==========\n";
     qDebug() << "CrawlerTask 集成测试 - Crawler侧完整工作流";
-    //test_crawler_task_integration();
     // test_batch_crawl();
+
+    // PresenterTask 功能测试 - 数据查询与处理
+    qDebug() << "\n========== PRESENTER TASK TEST ==========\n";
+    qDebug() << "PresenterTask 功能测试 - 数据查询与处理";
+    test_presenter_task();
 
     // 启动GUI应用
     qDebug() << "\n========== Launching GUI ==========";
