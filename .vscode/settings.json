@@ -1,0 +1,13 @@
+{
+    "files.associations": {
+        "*.dbclient-js": "javascript",
+        "*.cjson": "jsonc",
+        "*.wxss": "css",
+        "*.wxs": "javascript",
+        "*.idl": "cpp",
+        "*.def": "cpp",
+        "future": "cpp",
+        "system_error": "cpp",
+        "xiosbase": "cpp"
+    }
+}

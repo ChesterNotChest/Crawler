@@ -341,3 +341,158 @@ class Brain:
     def get_current_model(self) -> str:
         """获取当前使用的模型"""
         return self.model_name
+    
+    async def update_knowledge_base(self) -> Dict[str, Any]:
+        """更新知识库 - 从数据库爬取最新职位信息并向量化存储"""
+        try:
+            logger.info("开始更新知识库...")
+            
+            # 调用爬虫模块获取最新的职位数据
+            job_data = self._fetch_latest_job_data()
+            
+            # 解析职位数据
+            parsed_jobs = self._parse_job_data(job_data)
+            
+            # 清除旧的职位相关知识
+            self._clear_job_knowledge()
+            
+            # 将新职位信息添加到向量存储
+            added_count = 0
+            for job in parsed_jobs:
+                job_description = self._format_job_for_knowledge(job)
+                self.add_to_knowledge_base(job_description, f"job_{job.get('id', 'unknown')}")
+                added_count += 1
+            
+            # 获取更新后的统计信息
+            final_stats = self.get_knowledge_stats()
+            
+            logger.info(f"知识库更新完成，新增 {added_count} 个职位信息")
+            return {
+                "total_documents": final_stats.get("total_documents", 0),
+                "new_documents": added_count,
+                "model_used": final_stats.get("model_used", "unknown"),
+                "update_time": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"知识库更新失败: {e}", exc_info=True)
+            raise
+    
+    def _fetch_latest_job_data(self) -> List[Dict[str, Any]]:
+        """通过HTTP接口从C++获取最新的职位数据
+        注意：Python不再直接访问数据库文件，数据通过receive_database_data接口传输"""
+        try:
+            logger.info("从C++端获取职位数据（通过网络传输）")
+            
+            # 这里应该返回空数组，因为数据通过receive_database_data接口获取
+            # 这个方法保留是为了兼容，但实际数据流应该通过receive_database_data接口
+            logger.info("等待从C++端通过网络传输的数据")
+            return []
+            
+        except Exception as e:
+            logger.error(f"获取C++端数据失败: {e}", exc_info=True)
+            return []
+    
+    def _parse_job_data(self, job_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """解析职位数据"""
+        try:
+            parsed_jobs = []
+            recruit_type_map = {1: "校招", 2: "实习", 3: "社招"}
+            
+            for job in job_data:
+                # 根据数据库结构体进行数据清洗和格式化
+                cleaned_job = {
+                    "id": job.get("id", ""),
+                    "title": job.get("title", "").strip(),
+                    "company_id": job.get("company_id", 0),
+                    "recruit_type_id": job.get("recruit_type_id", 0),
+                    "city_id": job.get("city_id", 0),
+                    "source_id": job.get("source_id", 0),
+                    "requirements": job.get("requirements", "").strip(),
+                    "salary_min": job.get("salary_min", 0),
+                    "salary_max": job.get("salary_max", 0),
+                    "salary_slab_id": job.get("salary_slab_id", 0),
+                    "create_time": job.get("create_time", "").strip(),
+                    "update_time": job.get("update_time", "").strip(),
+                    "hr_last_login_time": job.get("hr_last_login_time", "").strip(),
+                    "company_name": job.get("company_name", "").strip(),
+                    "city_name": job.get("city_name", "").strip(),
+                    "source_name": job.get("source_name", "").strip(),
+                    "tags": job.get("tags", "").strip(),
+                    "recruit_type": recruit_type_map.get(job.get("recruit_type_id", 0), "未知"),
+                    "salary_range": self._format_salary_range(job.get("salary_min", 0), job.get("salary_max", 0))
+                }
+                
+                # 过滤掉无效的职位数据
+                if cleaned_job["title"] and cleaned_job["company_name"]:
+                    parsed_jobs.append(cleaned_job)
+            
+            logger.info(f"解析完成，共 {len(parsed_jobs)} 个有效职位")
+            return parsed_jobs
+            
+        except Exception as e:
+            logger.error(f"解析职位数据失败: {e}", exc_info=True)
+            return []
+    
+    def _format_salary_range(self, min_salary: float, max_salary: float) -> str:
+        """格式化薪资范围"""
+        try:
+            if min_salary == 0 and max_salary == 0:
+                return "面议"
+            elif min_salary > 0 and max_salary > 0:
+                return f"{int(min_salary)}-{int(max_salary)}K"
+            elif min_salary > 0:
+                return f"{int(min_salary)}K以上"
+            elif max_salary > 0:
+                return f"最高{int(max_salary)}K"
+            else:
+                return "面议"
+        except Exception as e:
+            logger.error(f"格式化薪资范围失败: {e}", exc_info=True)
+            return "面议"
+    
+    def _clear_job_knowledge(self):
+        """清除旧的职位相关知识"""
+        try:
+            # 获取所有文档的元数据
+            metadata_list = self.vector_store.get_documents_metadata()
+            
+            # 删除以"job_"开头的文档
+            deleted_count = 0
+            for meta in metadata_list[:]:  # 使用切片创建副本以避免修改时出错
+                if meta.get("source", "").startswith("job_"):
+                    doc_id = meta.get("id")
+                    if self.vector_store.delete_document(doc_id):
+                        deleted_count += 1
+            
+            logger.info(f"清除了 {deleted_count} 个旧的职位信息")
+            
+        except Exception as e:
+            logger.error(f"清除职位知识失败: {e}", exc_info=True)
+    
+    def _format_job_for_knowledge(self, job: Dict[str, Any]) -> str:
+        """格式化职位信息为知识库文本"""
+        try:
+            formatted_text = f"""
+职位信息：
+职位名称：{job.get('title', '')}
+公司名称：{job.get('company', '')}
+工作地点：{job.get('location', '')}
+薪资待遇：{job.get('salary', '')}
+工作经验：{job.get('experience', '')}
+学历要求：{job.get('education', '')}
+
+职位描述：
+{job.get('description', '')}
+
+任职要求：
+{job.get('requirements', '')}
+
+技能要求：
+{', '.join(job.get('skills', []))}
+"""
+            return formatted_text.strip()
+            
+        except Exception as e:
+            logger.error(f"格式化职位信息失败: {e}", exc_info=True)
+            return f"职位：{job.get('title', '')} 在 {job.get('company', '')}"

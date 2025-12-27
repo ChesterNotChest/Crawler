@@ -15,7 +15,7 @@ from web.app import app as fastapi_app
 
 def start_server():
     """启动FastAPI服务器"""
-    uvicorn.run(fastapi_app, host="0.0.0.0", port=8001)
+    uvicorn.run(fastapi_app, host="0.0.0.0", port=8000)
 
 def main():
     # 启动FastAPI服务器线程

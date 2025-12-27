@@ -1,6 +1,6 @@
 class TextStore:
     # 角色设定
-    PERSONA = "你是的AI助手，被开发来帮助用户回答文旅相关问题\n"
+    PERSONA = "你是一个专业的AI助手，被开发来帮助用户回答关于工作相关问题\n"
     
     # 文件路径
     DATA_DIR = "data/"

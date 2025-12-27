@@ -54,6 +54,14 @@ set(PROJECT_SOURCES
         tasks/internet_task.cpp
         tasks/crawler_task.h
         tasks/crawler_task.cpp
+        tasks/ai_transfer_task.h
+        tasks/ai_transfer_task.cpp
+        tasks/backend_manager_task.h
+        tasks/backend_manager_task.cpp
+        cppGUI/chatwindow.h
+        cppGUI/chatwindow.cpp
+        cppGUI/launcherwindow.h
+        cppGUI/launcherwindow.cpp
 )
 
 # 网络爬虫源文件

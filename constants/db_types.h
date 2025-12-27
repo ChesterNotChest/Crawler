@@ -49,6 +49,29 @@ struct JobInfo {
     QVector<int> tagIds;       // 标签ID列表
 };
 
+// 可供展示/打印用的职位信息结构体，包含JobInfo所有字段以及解析后的名称和标签
+struct JobInfoPrint {
+    long long jobId;           // 职位ID（64位）
+    QString jobName;           // 职位名称
+    int companyId;             // 公司ID
+    QString companyName;       // 公司名称（解析自Company表）
+    int recruitTypeId;         // 招聘类型ID (1=校招, 2=实习, 3=社招)
+    QString recruitTypeName;   // 招聘类型名称（解析自RecruitType）
+    int cityId;                // 城市ID
+    QString cityName;          // 城市名称（解析自JobCity）
+    int sourceId;              // 数据来源ID（外键关联Source表）
+    QString sourceName;        // 来源名称（解析自Source表）
+    QString requirements;      // 岗位要求
+    double salaryMin;          // 最低薪资
+    double salaryMax;          // 最高薪资
+    int salarySlabId;          // 薪资档次ID (0-6)
+    QString createTime;        // 创建时间
+    QString updateTime;        // 更新时间
+    QString hrLastLoginTime;   // HR最后登录时间
+    QVector<int> tagIds;       // 标签ID列表（原始ID）
+    QVector<QString> tagNames; // 标签名称列表（解析自JobTag）
+};
+
 } // namespace SQLNS
 
 #endif // DB_TYPES_H

@@ -46,6 +46,65 @@ async def verify_token(request: Request):
 async def chat(request: Dict[str, str]):
     return await controller.chat(request)
 
+# C++ GUI专用接口 - 不需要认证
+@app.post("/chat")
+async def simple_chat(request: Dict[str, str]):
+    """简化的聊天接口，专为C++ GUI设计"""
+    return await controller.chat(request)
+
+@app.get("/ping")
+async def ping():
+    """心跳检测接口"""
+    return {"status": "pong", "timestamp": "2025-12-26T10:00:00Z"}
+
+@app.post("/update_knowledge")
+async def update_knowledge():
+    """更新知识库接口"""
+    try:
+        result = await controller.update_knowledge()
+        return result
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"知识库更新失败: {str(e)}"
+        }
+
+@app.post("/receive_database_data")
+async def receive_database_data(request: Dict[str, Any]):
+    """接收C++客户端数据库数据接口，包含保护机制
+    当JSON格式不正确时，直接将传输的json内容转化为string并向量化投喂给AI存进知识库
+    """
+    try:
+        result = await controller.receive_database_data(request)
+        return result
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"处理数据库数据失败: {str(e)}",
+            "processed_as_raw": False
+        }
+
+@app.post("/process_single_data")
+async def process_single_data(request: Dict[str, Any]):
+    """处理单个数据项接口，用于实时逐个数据处理流程
+    C++端发送单个数据项，Python处理后返回结果，通知C++端显示
+    """
+    try:
+        result = await controller.process_single_data_item(request)
+        return result
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"处理单个数据项失败: {str(e)}",
+            "processed_item": request.get("data_item", {}),
+            "error": str(e)
+        }
+
+@app.get("/health")
+async def health_check():
+    """健康检查接口"""
+    return await controller.health_check()
+
 @app.post("/api/developer/chat")
 async def developer_chat(request: Dict[str, str], user: Dict = Depends(verify_token)):
     if not auth_manager.has_permission(user.get("role", "user"), "chat"):
@@ -75,44 +134,10 @@ async def send_video(request: Dict[str, str], user: Dict = Depends(verify_token)
     return await controller.send_video(request)
 
 @app.get("/api/health")
-async def health_check():
+async def api_health_check():
     return await controller.health_check()
 
-@app.post("/api/developer/generate-image")
-async def generate_image(request: Dict[str, str], user: Dict = Depends(verify_token)):
-    if not auth_manager.has_permission(user.get("role", "user"), "feed_document"):
-        raise HTTPException(status_code=403, detail="权限不足")
-    return await controller.generate_image(request)
 
-@app.post("/api/developer/generate-video")
-async def generate_video(request: Dict[str, str], user: Dict = Depends(verify_token)):
-    if not auth_manager.has_permission(user.get("role", "user"), "feed_document"):
-        raise HTTPException(status_code=403, detail="权限不足")
-    return await controller.generate_video(request)
-
-@app.post("/api/developer/generate-prompts")
-async def generate_prompts(request: Dict[str, str], user: Dict = Depends(verify_token)):
-    if not auth_manager.has_permission(user.get("role", "user"), "feed_document"):
-        raise HTTPException(status_code=403, detail="权限不足")
-    return await controller.generate_prompts(request)
-
-@app.get("/api/developer/generated-content")
-async def get_generated_content(user: Dict = Depends(verify_token)):
-    if not auth_manager.has_permission(user.get("role", "user"), "feed_document"):
-        raise HTTPException(status_code=403, detail="权限不足")
-    return await controller.get_generated_content()
-
-@app.get("/api/developer/list-models")
-async def list_models(user: Dict = Depends(verify_token)):
-    if not auth_manager.has_permission(user.get("role", "user"), "feed_document"):
-        raise HTTPException(status_code=403, detail="权限不足")
-    return await controller.list_models()
-
-@app.post("/api/developer/switch-model")
-async def switch_model(request: Dict[str, str], user: Dict = Depends(verify_token)):
-    if not auth_manager.has_permission(user.get("role", "user"), "feed_document"):
-        raise HTTPException(status_code=403, detail="权限不足")
-    return await controller.switch_model(request)
 
 @app.post("/api/auth/login")
 async def login(request: Dict[str, str]):

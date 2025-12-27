@@ -271,3 +271,36 @@ queryAllJobs()
 
 3. 第三步
 打印上面的内容
+
+## 源代码运行指南
+
+一·qt准备
+1·首先安装qt6.9.2
+2·安装cmake3.30.5
+3·安装mingw64
+4·安装Desktop_Qt_6_9_2_MSVC2022_64bit-Debug
+5·vs2022安装器的Desktop开发工具中勾选MSVC2022 64位
+6·将mingw64添加到环境变量
+7·安装qt creator
+
+
+二·本地IDE
+1·搭配python3.12及以上版本（最好保持一个版本3.12）
+2·搭配好IDE的python环境，该python用于大模型而非爬虫（具体可询问AI）
+3·安装python的第三方库，安装方法如下：
+       找到requirements.txt文件
+       在该文件所在目录打开命令行
+       输入pip install -r (requirements.txt的文件地址) -i https://pypi.tuna.tsinghua.edu.cn/simple/
+
+三·ollama准备（用于AI）
+1·首先安装ollama
+2·打开ollama
+3·输入ollama pull llama3.1:8b
+4·下载千问0.6B模型
+       找到ollama模型目录（一般在C:\Users\用户名\.ollama\models）
+       在该目录打开命令行
+       输入ollama pull qwen2.5:0.6b
+5·每次启动项目记得打开cmd，输入指令ollama serve并挂在后台
+
+做完以上准备后，就可以自由运行项目，自由修改了，c++端由qt运行，python由本地IDE运行
+实际上，若本地IDE和qt打开的项目是同一个文件地址的话，它们修改和更新是同步进行的

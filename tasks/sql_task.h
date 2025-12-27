@@ -105,6 +105,8 @@ private:
     static inline QString stdStringToQString(const std::string& str) {
         return QString::fromStdString(str);
     }
+
+    QVector<SQLNS::JobInfoPrint> queryAllJobsPrint();
 };
 
 #endif // SQL_TASK_H

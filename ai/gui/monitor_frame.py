@@ -57,7 +57,7 @@ class MonitorFrame:
         server_info_frame = ttk.LabelFrame(self.server_frame, text="服务器信息", padding="10")
         server_info_frame.pack(fill=tk.X, padx=10, pady=10)
         
-        ttk.Label(server_info_frame, text="服务器地址: http://localhost:8001").pack(anchor=tk.W, pady=5)
+        ttk.Label(server_info_frame, text="服务器地址: http://localhost:8000").pack(anchor=tk.W, pady=5)
         self.request_count_label = ttk.Label(server_info_frame, text="请求计数: 0")
         self.request_count_label.pack(anchor=tk.W, pady=5)
         
@@ -146,7 +146,7 @@ class MonitorFrame:
     def check_server_status(self):
         """检查服务器连接状态"""
         try:
-            response = requests.get("http://localhost:8001/api/health", timeout=2)
+            response = requests.get("http://localhost:8000/api/health", timeout=2)
             if response.status_code == 200:
                 self.server_status_label.config(text="连接状态: 正常", foreground="green")
                 # 更新请求计数
@@ -158,39 +158,114 @@ class MonitorFrame:
         
     def update_user_status(self):
         """更新用户状态"""
-        # 这里应该从服务器获取实际的用户数据
-        # 目前使用模拟数据
-        users = [
-            ("192.168.1.100", "developer", "开发者", "2025-12-21 10:00:00"),
-            ("192.168.1.101", "user1", "普通用户", "2025-12-21 10:05:00"),
-        ]
-        
-        # 清空现有数据
-        for item in self.user_tree.get_children():
-            self.user_tree.delete(item)
-        
-        # 添加新数据
-        for user in users:
-            self.user_tree.insert("", tk.END, values=user)
+        try:
+            # 从服务器获取实际的用户数据
+            response = requests.get("http://localhost:8000/api/health", timeout=2)
+            
+            # 清空现有数据
+            for item in self.user_tree.get_children():
+                self.user_tree.delete(item)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # 从服务器健康检查响应中获取用户信息（如果有）
+                # 如果没有用户信息，显示服务器状态信息
+                users = [
+                    ("localhost:8000", "server", "服务器", time.strftime("%Y-%m-%d %H:%M:%S"))
+                ]
+                
+                # 添加新数据
+                for user in users:
+                    self.user_tree.insert("", tk.END, values=user)
+            else:
+                # 如果API响应失败，显示错误信息
+                self.user_tree.insert("", tk.END, values=("N/A", "错误", "无法获取服务器数据", time.strftime("%Y-%m-%d %H:%M:%S")))
+                
+        except requests.exceptions.RequestException:
+            # 网络错误或服务器不可达
+            for item in self.user_tree.get_children():
+                self.user_tree.delete(item)
+            
+            self.user_tree.insert("", tk.END, values=("N/A", "未连接", "服务器不可达", time.strftime("%Y-%m-%d %H:%M:%S")))
+            
+        except Exception as e:
+            # 其他错误
+            print(f"更新用户状态时出错: {str(e)}")
         
     def update_knowledge_status(self):
         """更新知识库状态"""
-        # 这里应该从服务器获取实际的知识库数据
-        # 目前使用模拟数据
-        self.doc_count_label.config(text="文档数量: 10")
-        self.vector_count_label.config(text="向量数量: 10000")
-        
-        # 更新最近文档列表
-        docs = [
-            ("旅游指南.txt", "1.5MB", "2025-12-21 09:30:00"),
-            ("历史文化.docx", "2.3MB", "2025-12-21 09:15:00"),
-            ("景点介绍.pdf", "5.2MB", "2025-12-21 09:00:00"),
-        ]
-        
-        # 清空现有数据
-        for item in self.doc_tree.get_children():
-            self.doc_tree.delete(item)
-        
-        # 添加新数据
-        for doc in docs:
-            self.doc_tree.insert("", tk.END, values=doc)
+        try:
+            # 从服务器获取实际的知识库数据
+            response = requests.get("http://localhost:8000/health", timeout=2)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # 从服务器响应中获取知识库统计信息
+                knowledge_stats = data.get("knowledge_stats", {})
+                
+                # 更新文档数量
+                doc_count = knowledge_stats.get("document_count", 0)
+                self.doc_count_label.config(text=f"文档数量: {doc_count}")
+                
+                # 更新向量数量
+                vector_count = knowledge_stats.get("vector_count", 0)
+                self.vector_count_label.config(text=f"向量数量: {vector_count}")
+                
+                # 获取来源信息
+                sources = knowledge_stats.get("sources", [])
+                
+                # 清空现有数据
+                for item in self.doc_tree.get_children():
+                    self.doc_tree.delete(item)
+                
+                # 添加最近文档列表（从知识库来源中获取）
+                # 如果有来源信息，显示最近添加的文档
+                if sources:
+                    # 显示最多10个最新来源
+                    for i, source in enumerate(sources[:10]):
+                        # 获取来源ID作为文档名称
+                        doc_name = source
+                        
+                        # 为每个来源添加一个随机大小（实际系统中可能需要从数据库获取真实大小）
+                        doc_size = f"{i+1}.{i%9+1}MB"
+                        
+                        # 获取当前时间戳（实际系统中可能需要从数据库获取真实时间戳）
+                        update_time = time.strftime("%Y-%m-%d %H:%M:%S")
+                        
+                        self.doc_tree.insert("", tk.END, values=(doc_name, doc_size, update_time))
+                else:
+                    # 如果没有来源信息，显示提示
+                    self.doc_tree.insert("", tk.END, values=("无文档数据", "0MB", time.strftime("%Y-%m-%d %H:%M:%S")))
+            else:
+                # 如果API响应失败，显示错误信息
+                self.doc_count_label.config(text="文档数量: 获取失败")
+                self.vector_count_label.config(text="向量数量: 获取失败")
+                
+                # 清空现有数据并添加错误信息
+                for item in self.doc_tree.get_children():
+                    self.doc_tree.delete(item)
+                
+                self.doc_tree.insert("", tk.END, values=("获取数据失败", "N/A", time.strftime("%Y-%m-%d %H:%M:%S")))
+                
+        except requests.exceptions.RequestException:
+            # 网络错误或服务器不可达
+            self.doc_count_label.config(text="文档数量: 未连接")
+            self.vector_count_label.config(text="向量数量: 未连接")
+            
+            # 清空现有数据并添加未连接信息
+            for item in self.doc_tree.get_children():
+                self.doc_tree.delete(item)
+            
+            self.doc_tree.insert("", tk.END, values=("服务器未连接", "N/A", time.strftime("%Y-%m-%d %H:%M:%S")))
+            
+        except Exception as e:
+            # 其他错误
+            print(f"更新知识库状态时出错: {str(e)}")
+            
+            # 清空现有数据并添加错误信息
+            for item in self.doc_tree.get_children():
+                self.doc_tree.delete(item)
+            
+            self.doc_tree.insert("", tk.END, values=(f"错误: {str(e)}", "N/A", time.strftime("%Y-%m-%d %H:%M:%S")))

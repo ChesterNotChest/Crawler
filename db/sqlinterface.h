@@ -28,7 +28,9 @@ public:
     SQLNS::Source querySourceByCode(const QString &sourceCode);
     QVector<SQLNS::Source> queryAllSources();
     QVector<SQLNS::Source> queryEnabledSources();
-
+     // 查询用于展示/打印的职位信息，包含解析后的名称与标签
+    QVector<SQLNS::JobInfoPrint> queryAllJobsPrint();
+    
     // Company operations (companyId required - general ID)
     int insertCompany(int companyId, const QString &companyName);
 

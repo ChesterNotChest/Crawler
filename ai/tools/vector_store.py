@@ -174,11 +174,14 @@ class VectorStore:
         """获取统计信息"""
         try:
             average_length = np.mean([len(doc) for doc in self.documents]) if self.documents else 0
+            # 提取所有来源标识
+            sources = [meta.get("source", "") for meta in self.metadata if "source" in meta]
             # 将numpy类型转换为标准Python类型
             stats = {
                 "total_documents": len(self.documents),
                 "average_length": float(average_length) if hasattr(average_length, 'tolist') else average_length,
-                "model_used": self.model_name if self.model else "simple_embedding"
+                "model_used": self.model_name if self.model else "simple_embedding",
+                "sources": sources  # 添加来源字段
             }
             logger.debug(f"获取向量存储统计信息: {stats}")
             return stats
