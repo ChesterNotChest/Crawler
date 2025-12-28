@@ -37,6 +37,8 @@ Thumbs.db
 /.qmake.stash
 /logs
 
+/.venv
+
 # qtcreator generated files
 *.pro.user*
 *.qbs.user*

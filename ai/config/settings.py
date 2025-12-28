@@ -10,6 +10,11 @@ class Settings:
     MAX_TOKENS = 6000
     VECTOR_DIMENSION = 768
     
-    # 认证配置
+    # 认证配置===KNOWLEDGE_FIELD_START===
     SECRET_KEY = os.getenv("SECRET_KEY", "default_secret_key_for_development_only")
+
+    # LLM-based query expansion to improve recall (generate paraphrases / synonyms)
+    LLM_QUERY_EXPAND_ENABLED = os.getenv("LLM_QUERY_EXPAND_ENABLED", "true").lower() in ("1", "true", "yes")
+    QUERY_EXPANSION_COUNT = int(os.getenv("QUERY_EXPANSION_COUNT", "4"))
+    QUERY_EXPANSION_MAX_TOKENS = int(os.getenv("QUERY_EXPANSION_MAX_TOKENS", "256"))
     

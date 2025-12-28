@@ -1,8 +1,12 @@
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
-from typing import List, Dict, Any, Tuple
+from sklearn.feature_extraction.text import TfidfVectorizer
+from typing import List, Dict, Any, Tuple, Optional
 import json
 import os
+import time
+import re
+from collections import OrderedDict
 from datetime import datetime
 
 # 设置huggingface镜像源，解决模型下载超时问题
@@ -19,6 +23,13 @@ class VectorStore:
         self.metadata = []
         self.model = None
         self.model_name = "paraphrase-multilingual-MiniLM-L12-v2"
+        # TF-IDF fallback
+        self._tfidf_vectorizer: Optional[TfidfVectorizer] = None
+        self._tfidf_matrix = None
+
+        # Simple in-memory LRU cache for recent queries
+        self._cache_max = 128
+        self._query_cache: OrderedDict = OrderedDict()
         
         logger.info("向量存储初始化成功")
     
@@ -38,6 +49,8 @@ class VectorStore:
                 logger.info("将使用简单嵌入模式")
             
             self._load_index()
+            # 初始化TF-IDF矩阵（用于语义模型不可用时或作为补充）
+            self._rebuild_tfidf()
             logger.info("向量存储初始化完成")
         except Exception as e:
             logger.error(f"向量存储初始化失败: {e}", exc_info=True)
@@ -57,17 +70,29 @@ class VectorStore:
             })
             
             self._save_index()
+            # 更新TF-IDF矩阵
+            try:
+                self._rebuild_tfidf()
+            except Exception:
+                pass
             logger.info(f"文档添加成功: {text[:50]}... (来源: {source})")
         except Exception as e:
             logger.error(f"添加文档失败: {e}", exc_info=True)
     
-    def search(self, query: str, max_results: int = 5, min_score: float = 0.7) -> List[str]:
+    def search(self, query: str, max_results: int = 20, min_score: float = 0.25) -> List[str]:
         """搜索相似文档"""
         try:
             if not self.documents:
                 logger.info("向量存储为空，未找到匹配文档")
                 return []
-                
+
+            # 查询缓存
+            cache_key = (query.strip().lower(), max_results)
+            if cache_key in self._query_cache:
+                # move to end (most recently used)
+                self._query_cache.move_to_end(cache_key)
+                return self._query_cache[cache_key]
+
             query_embedding = self._generate_embedding(query)
             
             # 处理嵌入向量维度不一致的情况
@@ -95,12 +120,65 @@ class VectorStore:
                 # 再次计算相似度
                 similarities = cosine_similarity([normalized_query], normalized_embeddings)[0]
             
-            # 获取相似度最高的结果
-            results = []
-            for i in np.argsort(similarities)[::-1]:
-                if similarities[i] >= min_score and len(results) < max_results:
-                    results.append(self.documents[i])
-            
+            # 语义分数
+            semantic_scores = similarities
+
+            # 词汇/TF-IDF 余弦得分（作为补充）
+            lexical_scores = np.zeros(len(self.documents))
+            if self._tfidf_matrix is not None and self._tfidf_vectorizer is not None:
+                try:
+                    q_vec = self._tfidf_vectorizer.transform([query])
+                    lexical_sim = cosine_similarity(q_vec, self._tfidf_matrix)[0]
+                    lexical_scores = lexical_sim
+                except Exception:
+                    lexical_scores = np.zeros(len(self.documents))
+
+            # 组合评分：优先语义，再辅以词汇，再考虑时间衰减
+            combined_scores = []
+            now_ts = time.time()
+            for idx in range(len(self.documents)):
+                sem = float(semantic_scores[idx]) if idx < len(semantic_scores) else 0.0
+                lex = float(lexical_scores[idx]) if idx < len(lexical_scores) else 0.0
+
+                # recency score (0..0.1)
+                meta_ts = 0.0
+                try:
+                    meta_time = self.metadata[idx].get("timestamp")
+                    if meta_time:
+                        # try ISO format
+                        meta_ts = time.mktime(datetime.fromisoformat(meta_time).timetuple())
+                except Exception:
+                    meta_ts = 0.0
+
+                recency = 0.0
+                if meta_ts > 0:
+                    age_days = (now_ts - meta_ts) / 86400.0
+                    recency = max(0.0, 1.0 - min(age_days / 365.0, 1.0)) * 0.1
+
+                combined = 0.75 * sem + 0.15 * lex + recency
+                combined_scores.append((idx, combined, sem, lex, recency))
+
+            # 排序并筛选
+            combined_scores.sort(key=lambda x: x[1], reverse=True)
+
+            results: List[Dict[str, Any]] = []
+            for idx, combined, sem, lex, rec in combined_scores:
+                if combined >= min_score and len(results) < max_results:
+                    results.append({
+                        "text": self.documents[idx],
+                        "score": float(combined),
+                        "semantic_score": float(sem),
+                        "lexical_score": float(lex),
+                        "recency_score": float(rec),
+                        "metadata": self.metadata[idx]
+                    })
+
+            # 更新查询缓存
+            self._query_cache[cache_key] = results
+            # 保持缓存大小
+            while len(self._query_cache) > self._cache_max:
+                self._query_cache.popitem(last=False)
+
             logger.info(f"搜索完成，找到 {len(results)} 个匹配文档")
             return results
         except Exception as e:
@@ -112,8 +190,11 @@ class VectorStore:
         try:
             if self.model is not None:
                 # 使用真实的嵌入模型
+                # Ensure we always return a python list (not numpy) and handle single string or list
                 embedding = self.model.encode(text, show_progress_bar=False)
-                return embedding.tolist()
+                if hasattr(embedding, 'tolist'):
+                    return embedding.tolist()
+                return list(embedding)
         except Exception as e:
             logger.error(f"生成嵌入时出错: {e}")
             # 出错时回退到简单嵌入
@@ -132,6 +213,22 @@ class VectorStore:
             embedding = [x / norm for x in embedding]
             
         return embedding
+
+    def _rebuild_tfidf(self):
+        """构建或重建TF-IDF矩阵，用于词汇级别的相似度计算"""
+        try:
+            if not self.documents:
+                self._tfidf_vectorizer = None
+                self._tfidf_matrix = None
+                return
+
+            self._tfidf_vectorizer = TfidfVectorizer(max_features=5000, ngram_range=(1,2))
+            self._tfidf_matrix = self._tfidf_vectorizer.fit_transform(self.documents)
+            logger.debug("TF-IDF 矩阵构建完成")
+        except Exception as e:
+            logger.error(f"构建TF-IDF矩阵失败: {e}", exc_info=True)
+            self._tfidf_vectorizer = None
+            self._tfidf_matrix = None
     
     def _save_index(self):
         """保存索引"""
@@ -199,6 +296,11 @@ class VectorStore:
             logger.info("向量存储已清空")
         except Exception as e:
             logger.error(f"清空向量存储失败: {e}", exc_info=True)
+        finally:
+            try:
+                self._rebuild_tfidf()
+            except Exception:
+                pass
     
     def delete_document(self, doc_id: int) -> bool:
         """根据文档ID删除文档"""
@@ -221,6 +323,11 @@ class VectorStore:
         except Exception as e:
             logger.error(f"删除文档失败: {e}", exc_info=True)
             return False
+        finally:
+            try:
+                self._rebuild_tfidf()
+            except Exception:
+                pass
     
     def update_document(self, doc_id: int, new_content: str) -> bool:
         """根据文档ID更新文档内容"""
@@ -239,6 +346,11 @@ class VectorStore:
         except Exception as e:
             logger.error(f"更新文档失败: {e}", exc_info=True)
             return False
+        finally:
+            try:
+                self._rebuild_tfidf()
+            except Exception:
+                pass
     
     def get_documents_metadata(self) -> List[Dict[str, Any]]:
         """获取所有文档的元数据"""
