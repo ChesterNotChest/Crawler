@@ -229,7 +229,52 @@ class MiniProgramController:
                         continue
                     
                     # 格式化职位信息为文本
-                    job_text = f"职位ID: {job_id}\n职位信息: {info}"
+                    # 恢复职位信息格式，保留详细字段信息
+                    # 从info中提取各个字段进行格式化
+                    info_dict = {}
+                    try:
+                        # 尝试将info解析为字典
+                        info_dict = json.loads(info) if isinstance(info, str) else info
+                    except:
+                        # 如果无法解析，保持原始格式
+                        pass
+                    
+                    # 格式化职位信息，包含所有数据库字段
+                    formatted_info = ""
+                    if info_dict:
+                        # 基本信息 - 包含所有数据库字段
+                        formatted_info += f"【职位ID】: {info_dict.get('jobId', '')}\n"
+                        formatted_info += f"【职位标题】: {info_dict.get('title', info_dict.get('jobName', ''))}\n"
+                        formatted_info += f"【公司ID】: {info_dict.get('companyId', '')}\n"
+                        formatted_info += f"【公司名称】: {info_dict.get('company', info_dict.get('companyName', ''))}\n"
+                        formatted_info += f"【城市ID】: {info_dict.get('cityId', '')}\n"
+                        formatted_info += f"【工作地点】: {info_dict.get('location', info_dict.get('cityName', ''))}\n"
+                        formatted_info += f"【招聘类型ID】: {info_dict.get('recruitTypeId', '')}\n"
+                        formatted_info += f"【招聘类型】: {info_dict.get('recruitType', info_dict.get('recruitTypeName', ''))}\n"
+                        
+                        # 薪资信息
+                        formatted_info += f"【最低薪资】: {info_dict.get('salaryMin', '')}\n"
+                        formatted_info += f"【最高薪资】: {info_dict.get('salaryMax', '')}\n"
+                        formatted_info += f"【薪资档次ID】: {info_dict.get('salarySlabId', '')}\n"
+                        formatted_info += f"【薪资待遇】: {info_dict.get('salary', '')}\n"
+                        
+                        # 职位描述和要求
+                        formatted_info += f"【职位描述和要求】: {info_dict.get('description', info_dict.get('requirements', ''))}\n"
+                        
+                        # 时间信息
+                        formatted_info += f"【创建时间】: {info_dict.get('createTime', '')}\n"
+                        formatted_info += f"【更新时间】: {info_dict.get('updateTime', '')}\n"
+                        
+                        # 数据来源和其他字段（如果存在）
+                        if 'source' in info_dict:
+                            formatted_info += f"【数据来源】: {info_dict.get('source', '')}\n"
+                        if 'tags' in info_dict:
+                            formatted_info += f"【职位标签】: {info_dict.get('tags', '')}\n"
+                    else:
+                        # 如果无法解析，保留原始info内容
+                        formatted_info = info
+                    
+                    job_text = f"职位ID: {job_id}\n职位信息:\n{formatted_info}"
                     source_id = f"job_{job_id}"
                     
                     # 检查职位是否已经存在于知识库中
@@ -354,7 +399,34 @@ class MiniProgramController:
             
             # 格式化数据项信息为文本
             if job_id and info:
-                job_text = f"职位ID: {job_id}\n职位信息: {info}"
+                # 恢复职位信息格式，保留详细字段信息
+                # 从info中提取各个字段进行格式化
+                info_dict = {}
+                try:
+                    # 尝试将info解析为字典
+                    info_dict = json.loads(info) if isinstance(info, str) else info
+                except:
+                    # 如果无法解析，保持原始格式
+                    pass
+                
+                # 格式化职位信息，包含所有重要字段
+                formatted_info = ""
+                if info_dict:
+                    formatted_info += f"【职位标题】: {info_dict.get('title', '')}\n"
+                    formatted_info += f"【公司名称】: {info_dict.get('company', '')}\n"
+                    formatted_info += f"【工作地点】: {info_dict.get('location', '')}\n"
+                    formatted_info += f"【招聘类型】: {info_dict.get('recruitType', '')}\n"
+                    formatted_info += f"【薪资待遇】: {info_dict.get('salary', '')}\n"
+                    formatted_info += f"【数据来源】: {info_dict.get('source', '')}\n"
+                    formatted_info += f"【职位标签】: {info_dict.get('tags', '')}\n"
+                    formatted_info += f"【职位描述和要求】: {info_dict.get('description', '')}\n"
+                    formatted_info += f"【发布时间】: {info_dict.get('createTime', '')}\n"
+                    formatted_info += f"【最后更新时间】: {info_dict.get('updateTime', '')}\n"
+                else:
+                    # 如果无法解析，保留原始info内容
+                    formatted_info = info
+                
+                job_text = f"职位ID: {job_id}\n职位信息:\n{formatted_info}"
                 source_id = f"job_{job_id}"
             else:
                 # 如果只有部分字段，尝试组合所有信息

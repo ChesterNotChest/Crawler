@@ -323,15 +323,13 @@ QVector<QMap<QString, QVariant>> AITransferTask::fetchJobDataFromDatabase()
     for (const SQLNS::JobInfoPrint& job : jobs) {
         QMap<QString, QVariant> jobMap;
         
-<<<<<<< HEAD
         // 基本信息
         jobMap["jobId"] = QVariant::fromValue(job.jobId);
         jobMap["title"] = QVariant(job.jobName);
         jobMap["company"] = QVariant(job.companyName.isEmpty() ? "未知公司" : job.companyName);
         jobMap["location"] = QVariant(job.cityName.isEmpty() ? "未知地点" : job.cityName);
         
-        // 薪资信息
-=======
+
         // 基本信息 - 确保所有数据库字段都被包含
         jobMap["jobId"] = QVariant::fromValue(job.jobId);
         jobMap["jobName"] = QVariant(job.jobName);
@@ -350,8 +348,7 @@ QVector<QMap<QString, QVariant>> AITransferTask::fetchJobDataFromDatabase()
         jobMap["salaryMin"] = QVariant::fromValue(job.salaryMin);
         jobMap["salaryMax"] = QVariant::fromValue(job.salaryMax);
         jobMap["salarySlabId"] = QVariant::fromValue(job.salarySlabId);
-        
->>>>>>> 48027ee (优化了AI提示词，删去了对话内容存入知识库导致污染的问题，优化了数据库更新至知识库的功能，强化了回答检索知识库的能力)
+    
         QString salaryStr;
         if (job.salaryMin > 0 && job.salaryMax > 0) {
             salaryStr = QString("%1-%2元").arg(job.salaryMin).arg(job.salaryMax);
@@ -366,17 +363,11 @@ QVector<QMap<QString, QVariant>> AITransferTask::fetchJobDataFromDatabase()
         
         // 职位描述
         jobMap["description"] = QVariant(job.requirements);
-<<<<<<< HEAD
-        
-        // 招聘类型
-        jobMap["recruitType"] = QVariant(job.recruitTypeName);
-=======
         jobMap["requirements"] = QVariant(job.requirements);  // 保留兼容性
         
         // 时间信息
         jobMap["createTime"] = QVariant(job.createTime);
         jobMap["updateTime"] = QVariant(job.updateTime);
->>>>>>> 48027ee (优化了AI提示词，删去了对话内容存入知识库导致污染的问题，优化了数据库更新至知识库的功能，强化了回答检索知识库的能力)
         
         // 来源
         jobMap["source"] = QVariant(job.sourceName);
@@ -413,36 +404,22 @@ QVector<QMap<QString, QVariant>> AITransferTask::formatJobDataForSingleProcessin
         
         // 创建info字段，包含所有相关信息
         QString info;
-<<<<<<< HEAD
+
         info += "职位标题: " + job.value("title").toString() + "\n";
         info += "公司: " + job.value("company").toString() + "\n";
         info += "地点: " + job.value("location").toString() + "\n";
         info += "招聘类型: " + job.value("recruitType").toString() + "\n";
         info += "薪资: " + job.value("salary").toString() + "\n";
-        info += "来源: " + job.value("source").toString() + "\n";
-        info += "标签: " + job.value("tags").toString() + "\n";
-        info += "职位描述: " + job.value("description").toString() + "\n";
-        info += "发布时间: " + job.value("createTime").toString() + "\n";
-        info += "更新时间: " + job.value("updateTime").toString();
-=======
-        info += "【职位标题】: " + job.value("title").toString() + "\n";
-        info += "【公司名称】: " + job.value("company").toString() + "\n";
-        info += "【工作地点】: " + job.value("location").toString() + "\n";
-        info += "【招聘类型】: " + job.value("recruitType").toString() + "\n";
-        info += "【薪资待遇】: " + job.value("salary").toString() + "\n";
-        info += "【数据来源】: " + job.value("source").toString() + "\n";
         info += "【职位标签】: " + job.value("tags").toString() + "\n";
         info += "【职位描述和要求】: " + job.value("description").toString() + "\n";
         info += "【发布时间】: " + job.value("createTime").toString() + "\n";
         info += "【最后更新时间】: " + job.value("updateTime").toString() + "\n";
         info += "【数据提取时间】: " + QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
->>>>>>> 48027ee (优化了AI提示词，删去了对话内容存入知识库导致污染的问题，优化了数据库更新至知识库的功能，强化了回答检索知识库的能力)
-        
+
         // 设置为单个数据处理格式
         formattedJob["jobId"] = QVariant(jobId);
         formattedJob["info"] = QVariant(info);
         
-        result.append(formattedJob);
     }
 
     return result;
