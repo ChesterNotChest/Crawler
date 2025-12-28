@@ -60,11 +60,6 @@ class Brain:
             # 记录AI回复
             self._add_to_history(f"AI: {response}", user_id)
             
-            # 智能判断是否添加到知识库
-            if self._is_worth_adding(user_input, response):
-                self.add_to_knowledge_base(user_input, "user_question")
-                self.add_to_knowledge_base(response, "ai_response")
-            
             logger.info(f"AI回复用户 {user_id}: {response[:50]}...")
             return response
             
