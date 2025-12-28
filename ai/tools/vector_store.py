@@ -245,7 +245,6 @@ class VectorStore:
             logger.debug("向量索引保存成功")
         except Exception as e:
             logger.error(f"保存向量索引失败: {e}", exc_info=True)
-
     
     def _load_index(self):
         """加载索引"""
