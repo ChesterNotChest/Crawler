@@ -46,5 +46,8 @@ void test_webview2_cookie_wrl();
 // 注意：该测试仅用于开发/集成验证，不应作为生产作业调度入口
 void test_batch_crawl();
 
+// PresenterTask 功能测试 - 数据查询与处理
+void test_presenter_task();
+
 
 #endif // TEST_H
