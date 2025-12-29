@@ -8,8 +8,8 @@
 // 声明分页结果结构体（存在.h里）
 namespace TaskNS {
 struct PagingResult {
-    QVector<SQLNS::JobInfo> pageData;   // 分页后数据
-    QVector<SQLNS::JobInfo> allData;    // 原始全量数据
+    QVector<SQLNS::JobInfoPrint> pageData;   // 分页后数据
+    QVector<SQLNS::JobInfoPrint> allData;    // 原始全量数据
     int totalPage;                      // 总页数
     int currentPage;                    // 当前页
     int pageSize;                       // 每页条数
@@ -19,17 +19,20 @@ struct PagingResult {
 // Presenter层任务调度类
 class PresenterTask {
 public:
-    // 基础方法：获取原始数据+分页（核心）
-    static TaskNS::PagingResult queryJobsWithPaging(int page, int pageSize);
-    
-    // 原有方法保留
-    static QVector<SQLNS::JobInfo> executeGetAllJobs(int page, int pageSize);
-    static QVector<SQLNS::JobInfo> executeSortJobs(const QVector<SQLNS::JobInfo>& jobs, bool asc);
-    static QVector<SQLNS::JobInfo> executeFilterJobs(const QVector<SQLNS::JobInfo>& jobs, int cityId);
-
-    // 搜索接口（单字符串查询）
-    static QVector<SQLNS::JobInfo> executeSearchJobs(const QVector<SQLNS::JobInfo>& jobs,
-                                                     const QString& query);
+    // 单一入口：分页 + 搜索 + 字段映射筛选 + 排序
+    // 参数：
+    // - query: 单字符串查询（可为空）
+    // - fieldFilters: QMap<字段名, QVector<匹配字符串>>（可为空）
+    // - sortField: 排序字段名（可为空表示不排序）
+    // - asc: 是否升序
+    // - page: 当前页（从1开始）
+    // - pageSize: 每页大小
+    static TaskNS::PagingResult queryJobsWithPaging(const QString& query,
+                                                    const QMap<QString, QVector<QString>>& fieldFilters,
+                                                    const QString& sortField,
+                                                    bool asc,
+                                                    int page,
+                                                    int pageSize);
 };
 
 #endif // PRESENTER_TASK_H

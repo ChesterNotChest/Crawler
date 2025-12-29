@@ -32,11 +32,11 @@ int main(int argc, char *argv[])
     // test_webview2_cookie_wrl();
 
     // ========== 集成测试 ==========
-    qDebug() << "\n========== INTEGRATION TEST ==========\n";
-    qDebug() << "CrawlerTask 集成测试 - Crawler侧完整工作流";
+    // qDebug() << "\n========== INTEGRATION TEST ==========\n";
+    // qDebug() << "CrawlerTask 集成测试 - Crawler侧完整工作流";
     // test_batch_crawl();
 
-    // PresenterTask 功能测试 - 数据查询与处理
+    // PresenterTask 功能测试 - 数据查询与处理  //TODO FaIL
     qDebug() << "\n========== PRESENTER TASK TEST ==========\n";
     qDebug() << "PresenterTask 功能测试 - 数据查询与处理";
     test_presenter_task();

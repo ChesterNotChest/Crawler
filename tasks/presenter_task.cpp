@@ -4,47 +4,44 @@
 #include "presenter/presenter.h"
 #include "db/sqlinterface.h" // 引入SQLInterface和queryAllJobs
 
-// 核心方法：查询原始数据+分页（调用真实queryAllJobs）
-TaskNS::PagingResult PresenterTask::queryJobsWithPaging(int page, int pageSize) {
+// 单一入口：分页 + 搜索 + 字段映射筛选 + 排序
+TaskNS::PagingResult PresenterTask::queryJobsWithPaging(const QString& query,
+                                                        const QMap<QString, QVector<QString>>& fieldFilters,
+                                                        const QString& sortField,
+                                                        bool asc,
+                                                        int page,
+                                                        int pageSize) {
     TaskNS::PagingResult result;
     result.currentPage = page;
     result.pageSize = pageSize;
 
-    // 步骤1：调用真实的数据库查询接口（SQLInterface实例化）
+    // 步骤1：连接数据库并获取解析后的全量数据
     SQLInterface sqlInterface;
-    if (sqlInterface.connectSqlite(Presenter::DEFAULT_DB_PATH)) { // 使用默认数据库路径
-        result.allData = sqlInterface.queryAllJobs();    // 调用queryAllJobs获取全量数据
+    QVector<SQLNS::JobInfoPrint> jobList1;
+    if (sqlInterface.connectSqlite(Presenter::DEFAULT_DB_PATH)) {
+        jobList1 = sqlInterface.queryAllJobsPrint();
         sqlInterface.disconnect();
     } else {
-        // 若直接打开失败，尝试通过 Presenter 层的 getAllJobs（已包含自身分页保护）获取数据
-        result.allData = Presenter::getAllJobs(0, INT_MAX);
+        jobList1 = Presenter::getAllJobs(0, INT_MAX);
     }
 
-    // 步骤2：计算总页数
-    result.totalPage = (result.allData.size() + pageSize - 1) / pageSize;
+    // 步骤2：单字符串搜索
+    QVector<SQLNS::JobInfoPrint> jobList2 = Presenter::searchJobs(jobList1, query);
 
-    // 步骤3：调用Presenter的分页函数处理
+    // 步骤3：按字段映射筛选
+    QVector<SQLNS::JobInfoPrint> jobList3 = Presenter::searchJobs(jobList2, fieldFilters);
+
+    // 步骤4：排序（若提供 sortField）
+    QVector<SQLNS::JobInfoPrint> jobList4 = jobList3;
+    if (!sortField.isEmpty()) {
+        jobList4 = Presenter::sortJobs(jobList3, sortField, asc);
+    }
+
+    // 步骤5：分页并返回
+    result.allData = jobList4;
+    result.totalPage = (result.allData.size() + pageSize - 1) / pageSize;
     result.pageData = Presenter::paging(result.allData, page, pageSize);
 
     return result;
 }
-
-// 原有方法实现
-QVector<SQLNS::JobInfo> PresenterTask::executeGetAllJobs(int page, int pageSize) {
-    return Presenter::paging(Presenter::getAllJobs(), page, pageSize);
-}
-
-QVector<SQLNS::JobInfo> PresenterTask::executeSortJobs(const QVector<SQLNS::JobInfo>& jobs, bool asc) {
-    return Presenter::sortJobsBySalary(jobs, asc);
-}
-
-QVector<SQLNS::JobInfo> PresenterTask::executeFilterJobs(const QVector<SQLNS::JobInfo>& jobs, int cityId) {
-    return Presenter::filterJobsByCity(jobs, cityId);
-}
-
-QVector<SQLNS::JobInfo> PresenterTask::executeSearchJobs(const QVector<SQLNS::JobInfo>& jobs,
-                                                         const QString& query) {
-    return Presenter::searchJobs(jobs, query);
-}
-
 
