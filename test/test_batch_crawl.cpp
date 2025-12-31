@@ -19,7 +19,8 @@ void test_batch_crawl() {
 
     CrawlerTask task(&sql);
     // pageSize 使用默认(15)
-    int stored = task.crawlAll(40);
+    std::vector<std::string> sources = {"liepin", "nowcode", "zhipin", "chinahr", "wuyi"};
+    int stored = task.crawlAll(sources, 40);
 
     qDebug() << "[Test] crawlAll 返回存储数量:" << stored;
     qDebug() << "[Test] batch crawl 集成测试 完成";

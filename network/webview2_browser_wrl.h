@@ -16,12 +16,12 @@ public:
     ~WebView2BrowserWRL();
 
     // 启动导航并异步获取cookie
-    void fetchCookies(const QString& url);
+    Q_INVOKABLE void fetchCookies(const QString& url);
 
     // 启用/禁用请求捕捉
-    void enableRequestCapture(bool enable);
+    Q_INVOKABLE void enableRequestCapture(bool enable);
     // 尝试在页面上点击下一页按钮（如存在 class="btn-next"）
-    void clickNext();
+    Q_INVOKABLE void clickNext();
 
 signals:
     void cookieFetched(const QString& cookies);

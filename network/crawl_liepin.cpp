@@ -5,6 +5,7 @@
 #include <QDir>
 #include <QCoreApplication>
 #include <QEventLoop>
+#include <QThread>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -13,6 +14,7 @@
 #include <curl/curl.h>
 #include <thread>
 #include <chrono>
+#include <memory>
 
 // helper: curl write
 static size_t _write_to_string_liepin(void* contents, size_t size, size_t nmemb, void* userp) {
@@ -42,27 +44,38 @@ static std::string fetch_text_page_liepin(const std::string& url) {
 
 using namespace LiepinCrawler;
 
-std::pair<std::vector<JobInfo>, MappingData> LiepinCrawler::crawlLiepin(int pageNo, int pageSize, const std::string& city) {
+std::pair<std::vector<JobInfo>, MappingData> LiepinCrawler::crawlLiepin(int pageNo, int pageSize, const std::string& city, WebView2BrowserWRL* browser) {
     qDebug() << "[LiepinCrawler] Starting capture for page" << pageNo << "pageSize" << pageSize << "city" << QString::fromStdString(city);
 
-    WebView2BrowserWRL browser;
-    browser.enableRequestCapture(true);
+    std::unique_ptr<WebView2BrowserWRL> ownedBrowser;
+    if (!browser) {
+        // 如果未提供浏览器且当前不是 GUI 线程，则返回提示，避免在子线程创建 QWidget 导致断言。
+        if (QCoreApplication::instance() && QThread::currentThread() != QCoreApplication::instance()->thread()) {
+            qDebug() << "[LiepinCrawler] crawlLiepin 在非GUI线程被调用且未提供 browser，需由主线程提供 WebView2 实例";
+            MappingData md;
+            md.last_api_code = 38;
+            md.last_api_message = "requires_gui_browser";
+            return {{}, md};
+        }
+        ownedBrowser.reset(new WebView2BrowserWRL());
+        browser = ownedBrowser.get();
+    }
+    browser->enableRequestCapture(true);
 
     QEventLoop loop;
     bool got = false;
     QString rawJson;
 
-    QObject::connect(&browser, &WebView2BrowserWRL::responseCaptured, [&](const QString& url, const QString& body){
+    QObject::connect(browser, &WebView2BrowserWRL::responseCaptured, &loop, [&](const QString& url, const QString& body){
         Q_UNUSED(url);
         if (!body.isEmpty()) {
             rawJson = body;
             got = true;
-            // Do not print raw JSON to console; only log length for lightweight debug
             qDebug() << "[LiepinCrawler] Captured raw API response length:" << rawJson.length();
             if (loop.isRunning()) loop.quit();
         }
     });
-    QObject::connect(&browser, &WebView2BrowserWRL::navigationFailed, [&](const QString& reason){
+    QObject::connect(browser, &WebView2BrowserWRL::navigationFailed, &loop, [&](const QString& reason){
         qDebug() << "[LiepinCrawler] navigationFailed:" << reason;
         if (loop.isRunning()) loop.quit();
     });
@@ -70,7 +83,13 @@ std::pair<std::vector<JobInfo>, MappingData> LiepinCrawler::crawlLiepin(int page
     // 构造列表页URL（Liepin API 使用 0-based 页码，因此将传入的 1-based pageNo 转为 apiPage）
     int apiPage = pageNo > 0 ? (pageNo - 1) : 0;
     QString url = QString("https://www.liepin.com/zhaopin/?city=%1&currentPage=%2&pageSize=%3").arg(QString::fromStdString(city)).arg(apiPage).arg(pageSize);
-    browser.fetchCookies(url);
+
+    // 使用 invokeMethod 如果 browser 属于 GUI 线程
+    if (QThread::currentThread() != qApp->thread()) {
+        QMetaObject::invokeMethod(browser, "fetchCookies", Qt::QueuedConnection, Q_ARG(QString, url));
+    } else {
+        browser->fetchCookies(url);
+    }
 
     // 等待若干秒以捕获后台API响应
     QTimer::singleShot(12000, &loop, &QEventLoop::quit);

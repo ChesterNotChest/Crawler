@@ -60,7 +60,15 @@ int SqlTask::storeJobData(const ::JobInfo& crawledJob) {
              << ", updateTime=" << sqlJob.updateTime;
     int insertRes = m_sqlInterface->insertJob(sqlJob);
     if (insertRes < 0) {
-        qDebug() << "Failed to insert job:" << crawledJob.info_id;
+        qDebug() << "Failed to insert job:" << crawledJob.info_id << "; DB connected:" << m_sqlInterface->isConnected();
+        // Try to (re)create tables in case schema missing, then retry once
+        if (m_sqlInterface->isConnected()) {
+            qDebug() << "Attempting to create tables and retry insert...";
+            m_sqlInterface->createAllTables();
+            int retry = m_sqlInterface->insertJob(sqlJob);
+            if (retry >= 0) return retry;
+            qDebug() << "Retry insert failed for job:" << crawledJob.info_id;
+        }
         return -1;
     }
     long long jobId = sqlJob.jobId; // use full 64-bit id for subsequent mappings
@@ -130,7 +138,14 @@ int SqlTask::storeJobDataWithSource(const ::JobInfo& crawledJob, int sourceId) {
              << ", jobName=" << sqlJob.jobName;
     int insertRes = m_sqlInterface->insertJob(sqlJob);
     if (insertRes < 0) {
-        qDebug() << "Failed to insert job:" << crawledJob.info_id;
+        qDebug() << "Failed to insert job:" << crawledJob.info_id << "; DB connected:" << m_sqlInterface->isConnected();
+        if (m_sqlInterface->isConnected()) {
+            qDebug() << "Attempting to create tables and retry insert...";
+            m_sqlInterface->createAllTables();
+            int retry = m_sqlInterface->insertJob(sqlJob);
+            if (retry >= 0) return retry;
+            qDebug() << "Retry insert failed for job:" << crawledJob.info_id;
+        }
         return -1;
     }
     long long jobId = sqlJob.jobId;

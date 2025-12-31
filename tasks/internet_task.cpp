@@ -7,6 +7,7 @@
 #include <QDir>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QThread>
 #include <QCoreApplication>
 #include <QDate>
 
@@ -57,6 +58,8 @@ std::pair<std::vector<JobInfo>, MappingData> InternetTask::fetchBySource(
     qDebug() << "[InternetTask] (browser) 按来源爬取:" << sourceCode.c_str() << ", 页码:" << pageNo;
     if (sourceCode == "wuyi") {
         return WuyiCrawler::crawlWuyi(pageNo, pageSize, city, browser);
+    } else if (sourceCode == "liepin") {
+        return LiepinCrawler::crawlLiepin(pageNo, pageSize, city, browser);
     } else {
         qDebug() << "[InternetTask] (browser) 未实现的带浏览器的来源:" << sourceCode.c_str();
         return {{}, {}};
@@ -79,6 +82,12 @@ bool InternetTask::updateCookieBySource(const std::string& sourceCode, int timeo
         return true;
     } else {
         qDebug() << "[InternetTask] 未知源，无法更新cookie:" << sourceCode.c_str();
+        return false;
+    }
+
+    // 如果当前不是GUI线程且没有外部浏览器提供，则不要在此线程创建 QWidget（会触发断言）
+    if (QCoreApplication::instance() && QThread::currentThread() != QCoreApplication::instance()->thread()) {
+        qDebug() << "[InternetTask] updateCookieBySource 在非GUI线程调用且未提供外部浏览器，操作被中止:" << sourceCode.c_str();
         return false;
     }
 
@@ -160,6 +169,103 @@ bool InternetTask::updateCookieBySource(const std::string& sourceCode, int timeo
     }
 
     qDebug() << "[InternetTask] cookie 已写入 config.json";
+    return true;
+}
+
+bool InternetTask::updateCookieBySource(const std::string& sourceCode, WebView2BrowserWRL* browser, int timeoutMs) {
+    qDebug() << "[InternetTask] (browser) 开始更新 cookie for source:" << sourceCode.c_str();
+
+    QString homeUrl;
+    QString listUrl;
+    if (sourceCode == "zhipin") {
+        homeUrl = QLatin1String("https://www.zhipin.com/");
+        listUrl = QLatin1String("https://www.zhipin.com/web/geek/jobs?city=101010100");
+    } else if (sourceCode == "nowcode") {
+        qDebug() << "[InternetTask] nowcode 不需要cookie更新";
+        return true;
+    } else {
+        qDebug() << "[InternetTask] 未知源，无法更新cookie:" << sourceCode.c_str();
+        return false;
+    }
+
+    if (!browser) {
+        qDebug() << "[InternetTask] 提供的 browser 为 null";
+        return false;
+    }
+
+    QEventLoop loop;
+    bool got = false;
+    QString finalCookies;
+
+    // 将槽绑定到本地 loop 上作为 receiver，保证 lambda 在当前（调用者）线程执行，避免跨线程直接访问局部变量
+    QObject::connect(browser, &WebView2BrowserWRL::cookieFetched, &loop, [&](const QString& cookies){
+        qDebug() << "[InternetTask] (browser) WebView2 返回 cookie 长度:" << cookies.length();
+        got = true;
+        finalCookies = cookies;
+        if (loop.isRunning()) loop.quit();
+    });
+    QObject::connect(browser, &WebView2BrowserWRL::navigationFailed, &loop, [&](const QString& reason){
+        qDebug() << "[InternetTask] (browser) WebView2 导航失败:" << reason;
+        if (loop.isRunning()) loop.quit();
+    });
+
+    // 请求浏览器在 GUI 线程执行导航
+    QMetaObject::invokeMethod(browser, "fetchCookies", Qt::QueuedConnection, Q_ARG(QString, homeUrl));
+    QTimer::singleShot(timeoutMs, &loop, &QEventLoop::quit);
+    loop.exec();
+
+    if (!got) {
+        qDebug() << "[InternetTask] (browser) 首页未获取到cookie，尝试列表页";
+        QEventLoop loop2;
+        QMetaObject::invokeMethod(browser, "fetchCookies", Qt::QueuedConnection, Q_ARG(QString, listUrl));
+        QTimer::singleShot(timeoutMs, &loop2, &QEventLoop::quit);
+        loop2.exec();
+    }
+
+    if (!got || finalCookies.isEmpty()) {
+        qDebug() << "[InternetTask] (browser) 未能获取cookie";
+        return false;
+    }
+
+    // 写入 config.json（与原实现一致）
+    QString configPath = ConfigManager::getConfigFilePath();
+    qDebug() << "[InternetTask] (browser) Writing config.json to:" << configPath;
+
+    QFile f(configPath);
+    if (!f.exists()) {
+        ConfigManager::loadConfig(configPath);
+    }
+
+    if (!f.open(QIODevice::ReadOnly)) {
+        qDebug() << "[InternetTask] (browser) 无法打开config.json读取:" << configPath;
+        return false;
+    }
+    QByteArray data = f.readAll();
+    f.close();
+
+    QJsonDocument doc = QJsonDocument::fromJson(data);
+    if (!doc.isObject()) {
+        qDebug() << "[InternetTask] (browser) config.json 格式错误";
+        return false;
+    }
+    QJsonObject root = doc.object();
+    QJsonObject sourceObj = root.value(QString::fromStdString(sourceCode)).toObject();
+    sourceObj["cookie"] = QJsonValue(finalCookies);
+    sourceObj["updateTime"] = QJsonValue(QDate::currentDate().toString(Qt::ISODate));
+    root[QString::fromStdString(sourceCode)] = sourceObj;
+
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        qDebug() << "[InternetTask] (browser) 无法打开config.json写入:" << configPath;
+        return false;
+    }
+    f.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+    f.close();
+
+    if (ConfigManager::isLoaded()) {
+        ConfigManager::loadConfig(configPath);
+    }
+
+    qDebug() << "[InternetTask] (browser) cookie 已写入 config.json";
     return true;
 }
 

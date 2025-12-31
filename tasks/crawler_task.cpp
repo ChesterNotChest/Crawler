@@ -7,39 +7,70 @@
 #include "network/webview2_browser_wrl.h"
 #include "constants/network_types.h"
 
-CrawlerTask::CrawlerTask(SQLInterface *sqlInterface)
-    : m_internetTask(),
-      m_sqlTask(sqlInterface) {
-    qDebug() << "[CrawlerTask] 初始化完成";
+
+CrawlerTask::CrawlerTask(SQLInterface *sqlInterface, WebView2BrowserWRL *sessionBrowser)
+        : m_sqlInterface(sqlInterface),
+            m_internetTask(),
+            m_sqlTask(sqlInterface),
+            m_isPaused(false),
+            m_isTerminated(false),
+            m_sessionBrowser(sessionBrowser) {
+        qDebug() << "[CrawlerTask] 初始化完成";
 }
 
+void CrawlerTask::pause() {
+    m_isPaused = true;
+}
 
+void CrawlerTask::resume() {
+    m_isPaused = false;
+}
 
+void CrawlerTask::terminate() {
+    m_isTerminated = true;
+}
 
-int CrawlerTask::crawlAll(int maxPagesPerSource, int pageSize) {
-    qDebug() << "[CrawlerTask] crawlAll 启动，maxPagesPerSource=" << maxPagesPerSource << " pageSize=" << pageSize;
+bool CrawlerTask::isPaused() const {
+    return m_isPaused;
+}
+
+bool CrawlerTask::isTerminated() const {
+    return m_isTerminated;
+}
+
+void CrawlerTask::setProgressCallback(std::function<void(int, int, const std::string&)> callback) {
+    m_progressCallback = callback;
+}
+
+int CrawlerTask::crawlAll(const std::vector<std::string>& sources, int maxPagesPerSource, int pageSize) {
+    qDebug() << "[CrawlerTask] crawlAll 启动，sources size=" << sources.size() << " maxPagesPerSource=" << maxPagesPerSource << " pageSize=" << pageSize;
 
     int totalStored = 0;
+    m_isPaused = false;
+    m_isTerminated = false;
 
-    // 数据源顺序：nowcode -> zhipin
-    // std::vector<std::string> sources = {"nowcode", "zhipin", "chinahr", "liepin", "wuyi"};
-    std::vector<std::string> sources = {/*"liepin"*/"nowcode", "zhipin", "chinahr",  "wuyi"};
     // 控制是否在页间暂停，以及哪些来源需要暂停（可按需修改）
     std::vector<std::string> pauseSources = { "zhipin", "liepin", "wuyi" };
-    for (const auto& src : sources) {
+    for (size_t sourceIndex = 0; sourceIndex < sources.size(); ++sourceIndex) {
+        if (m_isTerminated) break;
+        const auto& src = sources[sourceIndex];
+        if (m_progressCallback) {
+            m_progressCallback(sourceIndex, sources.size(), "开始处理来源: " + src);
+        }
         qDebug() << "[CrawlerTask] 开始来源:" << src.c_str();
-        m_internetTask.updateCookieBySource(src);
+        // 对于需要浏览器会话的来源（zhipin/liepin/wuyi），不要在子线程直接调用 updateCookieBySource（会创建 QWidget）
+        if (src != "zhipin" && src != "wuyi" && src != "liepin") {
+            m_internetTask.updateCookieBySource(src);
+        }
 
         // sourceId mapping is provided by constants/network_types.h
 
-        // For session-based sources like wuyi, create a persistent WebView2 browser instance
-        std::unique_ptr<WebView2BrowserWRL> sessionBrowser;
-        if (src == "wuyi") {
-            sessionBrowser.reset(new WebView2BrowserWRL());
-            sessionBrowser->enableRequestCapture(true);
+        // For session-based sources like wuyi, 使用主线程创建的 m_sessionBrowser
+        if (src == "wuyi" && m_sessionBrowser) {
+            QMetaObject::invokeMethod(m_sessionBrowser, "enableRequestCapture", Qt::QueuedConnection, Q_ARG(bool, true));
             // Navigate to the list page to initialize session (city may be empty)
             QString initUrl = QLatin1String("https://we.51job.com/pc/search");
-            sessionBrowser->fetchCookies(initUrl);
+            QMetaObject::invokeMethod(m_sessionBrowser, "fetchCookies", Qt::QueuedConnection, Q_ARG(QString, initUrl));
             // give the page a moment to initialize before the first capture
             QThread::sleep(1);
         }
@@ -59,9 +90,16 @@ int CrawlerTask::crawlAll(int maxPagesPerSource, int pageSize) {
 
 
         int page = 1;
+        int totalPage = 0;  // 总页数计数，用于zhipin跨城市合计
         while (true) {
+            if (m_isTerminated) break;
+            while (m_isPaused) {
+                QThread::sleep(1);  // 等待恢复
+                if (m_isTerminated) break;
+            }
+            if (m_isTerminated) break;
             // 达到用户指定的最大页数上限则停止
-            if (maxPagesPerSource > 0 && page > maxPagesPerSource) {
+            if (maxPagesPerSource > 0 && totalPage >= maxPagesPerSource) {
                 qDebug() << "[CrawlerTask] 达到最大页数上限，停止来源:" << src.c_str();
                 break;
             }
@@ -69,8 +107,8 @@ int CrawlerTask::crawlAll(int maxPagesPerSource, int pageSize) {
             qDebug() << "[CrawlerTask] 来源" << src.c_str() << "城市" << currentCity.c_str()
                      << "类型" << currentRecruitType << "第" << page << "页开始抓取...";
             std::pair<std::vector<JobInfo>, MappingData> res;
-            if (src == "wuyi") {
-                res = m_internetTask.fetchBySource(src, page, pageSize, sessionBrowser.get(), currentRecruitType, currentCity);
+            if ((src == "wuyi" || src == "liepin") && m_sessionBrowser) {
+                res = m_internetTask.fetchBySource(src, page, pageSize, m_sessionBrowser, currentRecruitType, currentCity);
             } else {
                 res = m_internetTask.fetchBySource(src, page, pageSize, currentRecruitType, currentCity);
             }
@@ -79,10 +117,20 @@ int CrawlerTask::crawlAll(int maxPagesPerSource, int pageSize) {
             // 任意来源遇到反爬码37则更新cookie并重试一次
             if (mapping.last_api_code == 37) {
                 qDebug() << "[CrawlerTask] 检测到 反爬码 37，尝试更新 cookie 并重试此页...";
-                bool ok = m_internetTask.updateCookieBySource(src);
+                bool ok = false;
+                // 如果来源需要浏览器会话并且我们有主线程创建的 session browser，则使用它来更新cookie
+                if ((src == "wuyi" || src == "liepin" || src == "zhipin") && m_sessionBrowser) {
+                    ok = m_internetTask.updateCookieBySource(src, m_sessionBrowser);
+                } else {
+                    ok = m_internetTask.updateCookieBySource(src);
+                }
                 if (ok) {
                     qDebug() << "[CrawlerTask] cookie 更新成功，重试第" << page << "页...";
-                    std::tie(jobs, mapping) = m_internetTask.fetchBySource(src, page, pageSize, 1, currentCity);
+                    if ((src == "wuyi" || src == "liepin") && m_sessionBrowser) {
+                        std::tie(jobs, mapping) = m_internetTask.fetchBySource(src, page, pageSize, m_sessionBrowser, currentRecruitType, currentCity);
+                    } else {
+                        std::tie(jobs, mapping) = m_internetTask.fetchBySource(src, page, pageSize, currentRecruitType, currentCity);
+                    }
                 } else {
                     qDebug() << "[CrawlerTask] cookie 更新失败";
                 }
@@ -95,6 +143,15 @@ int CrawlerTask::crawlAll(int maxPagesPerSource, int pageSize) {
                 int stored = m_sqlTask.storeJobDataBatchWithSource(jobs, sourceId);
                 totalStored += stored;
                 qDebug() << "[CrawlerTask] 来源" << src.c_str() << "第" << page << "页存储" << stored << "条";
+
+                // 进度回调
+                if (m_progressCallback) {
+                    // For zhipin show totalPage (overall) when available; otherwise fallback to current page
+                    int displayPage = page;
+                    if (src == "zhipin" && mapping.totalPage > 0) displayPage = mapping.totalPage;
+                    std::string msg = "来源 " + src + " 第 " + std::to_string(displayPage) + " 页存储 " + std::to_string(stored) + " 条";
+                    m_progressCallback(sourceIndex, sources.size(), msg);
+                }
             } else {
                 qDebug() << "[CrawlerTask] 第" << page << "页无数据";
             }
@@ -109,7 +166,7 @@ int CrawlerTask::crawlAll(int maxPagesPerSource, int pageSize) {
                 // If has_more is false, do not click next
                 if (mapping.has_more) {
                     qDebug() << "[CrawlerTask] wuyi: clicking next page button in session browser";
-                    if (sessionBrowser) sessionBrowser->clickNext();
+                    if (m_sessionBrowser) QMetaObject::invokeMethod(m_sessionBrowser, "clickNext", Qt::QueuedConnection);
                     // small pause to allow page to fire requests
                     QThread::sleep(1);
                 } else {
@@ -141,6 +198,7 @@ int CrawlerTask::crawlAll(int maxPagesPerSource, int pageSize) {
             }
 
             page++;
+            totalPage++;
         }
     }
 
