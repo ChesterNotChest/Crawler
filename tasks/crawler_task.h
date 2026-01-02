@@ -55,6 +55,10 @@ public:
      * @param callback 回调函数，参数：current, total, message
      */
     void setProgressCallback(std::function<void(int, int, const std::string&)> callback);
+    // 设置子进度回调：参数为 currentPage, expectedPages
+    void setSubProgressCallback(std::function<void(int, int)> callback);
+    // 设置来源级别进度回调：参数为 sourceIndex, fraction(0..10000 represented as int 0..10000 for precision)
+    void setSourceProgressCallback(std::function<void(size_t, double)> callback);
     
     
 
@@ -66,6 +70,8 @@ public:
      * @param pageSize 每页大小
      */
     int crawlAll(const std::vector<std::string>& sources, int maxPagesPerSource = 0, int pageSize = 15);
+    // 新 overload：对每个来源分别指定最大页数（列表长度可小于 sources，会按需填充为 0）
+    int crawlAll(const std::vector<std::string>& sources, const std::vector<int>& maxPagesPerSourceList, int pageSize = 15);
     
 private:
     SQLInterface *m_sqlInterface;
@@ -74,6 +80,8 @@ private:
     std::atomic<bool> m_isPaused;
     std::atomic<bool> m_isTerminated;
     std::function<void(int, int, const std::string&)> m_progressCallback;
+    std::function<void(int, int)> m_subProgressCallback;
+    std::function<void(size_t, double)> m_sourceProgressCallback;
     WebView2BrowserWRL *m_sessionBrowser; // 非拥有指针，主线程创建
 };
 

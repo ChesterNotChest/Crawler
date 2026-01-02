@@ -2,6 +2,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QWidget>
+#include <QSizePolicy>
 #include <QPushButton>
 #include <QDialog>
 #include <QLabel>
@@ -78,6 +79,9 @@ CrawlerWindow::CrawlerWindow(QWidget *parent) : QMainWindow(parent), currentPage
     table->setHorizontalHeaderLabels({"jobId", "工作名称", "招聘类型", "城市", "薪资", "来源", "Tags", "查看"});
     table->setSortingEnabled(false); // disable auto sort
     QHeaderView *header = table->horizontalHeader();
+    // make columns stretch to fill available width
+    header->setSectionResizeMode(QHeaderView::Stretch);
+    table->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     connect(header, &QHeaderView::sectionClicked, this, &CrawlerWindow::onHeaderClicked);
     mainLayout->addWidget(table);
 
@@ -92,6 +96,13 @@ CrawlerWindow::CrawlerWindow(QWidget *parent) : QMainWindow(parent), currentPage
     pageLayout->addWidget(pageSpin);
     pageLayout->addWidget(totalLabel);
     pageLayout->addWidget(nextButton);
+    // 每页显示数量设置
+    QLabel *pageSizeLabel = new QLabel("每页:");
+    pageSizeSpin = new QSpinBox;
+    pageSizeSpin->setRange(1, 200);
+    pageSizeSpin->setValue(pageSize);
+    pageLayout->addWidget(pageSizeLabel);
+    pageLayout->addWidget(pageSizeSpin);
     mainLayout->addLayout(pageLayout);
 
     setCentralWidget(central);
@@ -103,6 +114,14 @@ CrawlerWindow::CrawlerWindow(QWidget *parent) : QMainWindow(parent), currentPage
     connect(prevButton, &QPushButton::clicked, this, [this]() { onPrevPage(); });
     connect(nextButton, &QPushButton::clicked, this, [this]() { onNextPage(); });
     connect(pageSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int page) { onPageChanged(page); });
+    // apply page size only when user confirms
+    QPushButton *applyPageSizeBtn = new QPushButton("确定");
+    pageLayout->addWidget(applyPageSizeBtn);
+    connect(applyPageSizeBtn, &QPushButton::clicked, this, [this]() {
+        pageSize = pageSizeSpin->value();
+        currentPage = 1;
+        onSearchClicked(true);
+    });
 
     // Initial load
     onSearchClicked(true);
@@ -112,35 +131,47 @@ void CrawlerWindow::onCrawlButtonClicked() {
     QDialog dialog(this);
     dialog.setWindowTitle("爬取设置");
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
-    QLabel *labelPages = new QLabel("每个来源爬取的页数:");
-    QSpinBox *spinPages = new QSpinBox();
-    spinPages->setRange(1, 100);
-    spinPages->setValue(10);
+    QLabel *labelPages = new QLabel("为每个来源设置爬取页数（未勾选的来源将被忽略）:");
     layout->addWidget(labelPages);
-    layout->addWidget(spinPages);
-    QLabel *labelSources = new QLabel("需要爬取的来源:");
+
+    // list of available sources with per-source spinboxes
     QListWidget *listSources = new QListWidget();
     QStringList sources = {"liepin", "nowcode", "zhipin", "chinahr", "wuyi"};
+    struct ItemWidgets { QCheckBox *check; QSpinBox *spin; };
+    std::vector<ItemWidgets> widgets;
     for (const QString &source : sources) {
-        QListWidgetItem *item = new QListWidgetItem(source);
-        item->setCheckState(Qt::Checked);
+        QListWidgetItem *item = new QListWidgetItem();
+        QWidget *w = new QWidget();
+        QHBoxLayout *h = new QHBoxLayout(w);
+        QCheckBox *cb = new QCheckBox(source);
+        cb->setChecked(true);
+        QSpinBox *sp = new QSpinBox();
+        sp->setRange(1, 100);
+        sp->setValue(10);
+        h->addWidget(cb);
+        h->addStretch();
+        h->addWidget(new QLabel("页数:"));
+        h->addWidget(sp);
+        h->setContentsMargins(2,2,2,2);
         listSources->addItem(item);
+        item->setSizeHint(w->sizeHint());
+        listSources->setItemWidget(item, w);
+        widgets.push_back({cb, sp});
     }
-    layout->addWidget(labelSources);
     layout->addWidget(listSources);
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     layout->addWidget(buttonBox);
-    connect(buttonBox, &QDialogButtonBox::accepted, &dialog, [this, spinPages, listSources]() {
-        int pages = spinPages->value();
+    connect(buttonBox, &QDialogButtonBox::accepted, &dialog, [this, listSources, sources, widgets]() {
         std::vector<std::string> selectedSources;
-        for (int i = 0; i < listSources->count(); ++i) {
-            QListWidgetItem *item = listSources->item(i);
-            if (item->checkState() == Qt::Checked) {
-                selectedSources.push_back(item->text().toStdString());
+        std::vector<int> pagesList;
+        for (int i = 0; i < listSources->count() && i < (int)widgets.size(); ++i) {
+            if (widgets[i].check->isChecked()) {
+                selectedSources.push_back(sources[i].toStdString());
+                pagesList.push_back(widgets[i].spin->value());
             }
         }
         if (!selectedSources.empty()) {
-            CrawlProgressWindow *progressWindow = new CrawlProgressWindow(selectedSources, pages, this);
+            CrawlProgressWindow *progressWindow = new CrawlProgressWindow(selectedSources, pagesList, this);
             progressWindow->show();
         }
     });
@@ -212,7 +243,8 @@ void CrawlerWindow::fillTable(const QVector<SQLNS::JobInfoPrint> &jobs) {
 void CrawlerWindow::populateFilters(const QVector<SQLNS::JobInfoPrint> &jobs) {
     QSet<QString> salaries, tags, cities, recruitTypes, sources;
     for (const auto &job : jobs) {
-        salaries.insert((job.salaryMin == 0) ? "面议" : QString("%1-%2").arg(job.salaryMin).arg(job.salaryMax));
+        // use salarySlabId for filtering
+        salaries.insert(QString::number(job.salarySlabId));
         for (const auto &tag : job.tagNames) tags.insert(tag);
         cities.insert(job.cityName);
         recruitTypes.insert(job.recruitTypeName);
@@ -245,10 +277,13 @@ void CrawlerWindow::showFilterDialog(const QString &field, QPushButton *button) 
     QListWidget *listWidget = new QListWidget;
     layout->addWidget(listWidget);
 
-    // Populate listWidget with items from filterOptions
-    const QSet<QString> &options = filterOptions.value(field);
+    // Populate listWidget with items from filterOptions (sorted alphabetically)
+    const QSet<QString> &optionsSet = filterOptions.value(field);
+    QStringList optionsList;
+    for (const QString &opt : optionsSet) optionsList << opt;
+    optionsList.sort(Qt::CaseInsensitive);
     QVector<QString> currentChecked = currentFilters.value(field);
-    for (const QString &option : options) {
+    for (const QString &option : optionsList) {
         QListWidgetItem *item = new QListWidgetItem(option);
         item->setCheckState(currentChecked.contains(option) ? Qt::Checked : Qt::Unchecked);
         listWidget->addItem(item);

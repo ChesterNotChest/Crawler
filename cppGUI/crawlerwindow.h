@@ -57,6 +57,7 @@ private:
     QSpinBox *pageSpin;
     QLabel *totalLabel;
     QPushButton *nextButton;
+    QSpinBox *pageSizeSpin;
 
     int currentPage;
     int pageSize;

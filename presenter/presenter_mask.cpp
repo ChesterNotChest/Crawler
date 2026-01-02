@@ -101,9 +101,12 @@ QVector<SQLNS::JobInfoPrint> Presenter::searchJobs(const QVector<SQLNS::JobInfoP
                     if (job.recruitTypeName.contains(v, Qt::CaseInsensitive)) { fieldMatched = true; break; }
                 }
             } else if (field == "salary") {
-                for (const auto &v : vals) {
-                    QString salaryStr = (job.salaryMin == 0) ? "面议" : QString("%1-%2").arg(job.salaryMin).arg(job.salaryMax);
-                    if (salaryStr == v) { fieldMatched = true; break; }
+                    // salary filter now uses salarySlabId (integer) matching
+                    for (const auto &v : vals) {
+                        bool ok = false;
+                        int q = v.toInt(&ok);
+                        if (!ok) continue;
+                        if (job.salarySlabId == q) { fieldMatched = true; break; }
                 }
             } else if (field == "tagNames" || field == "tags") {
                 for (const auto &v : vals) {

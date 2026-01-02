@@ -16,29 +16,33 @@ class CrawlProgressWindow : public QMainWindow {
     Q_OBJECT
 
 public:
-    CrawlProgressWindow(const std::vector<std::string>& sources, int maxPages, QWidget *parent = nullptr);
+    CrawlProgressWindow(const std::vector<std::string>& sources, const std::vector<int>& maxPagesList, QWidget *parent = nullptr);
     ~CrawlProgressWindow();
 
 private slots:
     void onPauseResumeClicked();
     void onTerminateClicked();
     void updateProgress(int current, int total, const QString& message);
+    void updateSubProgress(int currentPage, int expectedPages);
+    void updateSourceProgress(int sourceIndex, double fraction);
 
 private:
     void startCrawling();
 
     QProgressBar *progressBar;
+    QProgressBar *subProgressBar; // per-site progress
     QPushButton *pauseResumeButton;
     QPushButton *terminateButton;
     QLabel *statusLabel;
 
     std::vector<std::string> m_sources;
-    int m_maxPages;
+    std::vector<int> m_maxPagesList;
 
     CrawlerTask *m_crawlerTask;
     SQLInterface *m_sqlInterface;
     QThread *m_crawlThread;
     WebView2BrowserWRL *m_sessionBrowser;
+    QVector<double> m_sourceFractions;
 };
 
 #endif // CRAWLPROGRESSWINDOW_H
