@@ -1,0 +1,359 @@
+#include "crawlerwindow.h"
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QWidget>
+#include <QSizePolicy>
+#include <QPushButton>
+#include <QDialog>
+#include <QLabel>
+#include <QSpinBox>
+#include <QComboBox>
+#include <QDialogButtonBox>
+#include <QCloseEvent>
+#include <QStandardItem>
+#include <QHeaderView>
+#include <QListWidget>
+#include <QCheckBox>
+#include "tasks/presenter_task.h"
+#include "tasks/crawler_task.h"
+#include "db/sqlinterface.h"
+#include "presenter/presenter.h"
+#include "constants/db_types.h"
+#include "crawlprogresswindow.h"
+
+CrawlerWindow::CrawlerWindow(QWidget *parent) : QMainWindow(parent), currentPage(1), pageSize(20), asc(true) {
+    fieldMap["jobId"] = "jobId";
+    fieldMap["工作名称"] = "jobName";
+    fieldMap["招聘类型"] = "recruitTypeName";
+    fieldMap["城市"] = "cityName";
+    fieldMap["薪资"] = "salaryMin";
+    fieldMap["来源"] = "sourceName";
+    fieldMap["Tags"] = "tagNames";
+
+    QWidget *central = new QWidget;
+    QVBoxLayout *mainLayout = new QVBoxLayout(central);
+
+    // top
+    QHBoxLayout *topLayout = new QHBoxLayout;
+    searchLineEdit = new QLineEdit;
+    searchButton = new QPushButton("搜索");
+    refreshButton = new QPushButton("刷新");
+    crawlButton = new QPushButton("爬取");
+    topLayout->addWidget(searchLineEdit);
+    topLayout->addWidget(searchButton);
+    topLayout->addWidget(refreshButton);
+    topLayout->addWidget(crawlButton);
+    mainLayout->addLayout(topLayout);
+
+    // filter
+    QHBoxLayout *filterLayout = new QHBoxLayout;
+    salaryFilter = new QPushButton("薪金筛选");
+    connect(salaryFilter, &QPushButton::clicked, this, [this]() { showFilterDialog("salary", salaryFilter); });
+    filterLayout->addWidget(salaryFilter);
+
+    tagFilter = new QPushButton("Tag筛选");
+    connect(tagFilter, &QPushButton::clicked, this, [this]() { showFilterDialog("tagNames", tagFilter); });
+    filterLayout->addWidget(tagFilter);
+
+    cityFilter = new QPushButton("城市筛选");
+    connect(cityFilter, &QPushButton::clicked, this, [this]() { showFilterDialog("cityName", cityFilter); });
+    filterLayout->addWidget(cityFilter);
+
+    recruitTypeFilter = new QPushButton("招聘类型筛选");
+    connect(recruitTypeFilter, &QPushButton::clicked, this, [this]() { showFilterDialog("recruitTypeName", recruitTypeFilter); });
+    filterLayout->addWidget(recruitTypeFilter);
+
+    sourceFilter = new QPushButton("来源筛选");
+    connect(sourceFilter, &QPushButton::clicked, this, [this]() { showFilterDialog("sourceName", sourceFilter); });
+    filterLayout->addWidget(sourceFilter);
+
+    clearFilterButton = new QPushButton("清除筛选");
+    connect(clearFilterButton, &QPushButton::clicked, this, &CrawlerWindow::onClearFilters);
+    filterLayout->addWidget(clearFilterButton);
+
+    mainLayout->addLayout(filterLayout);
+
+    // table
+    table = new QTableWidget;
+    table->setColumnCount(8);
+    table->setHorizontalHeaderLabels({"jobId", "工作名称", "招聘类型", "城市", "薪资", "来源", "Tags", "查看"});
+    table->setSortingEnabled(false); // disable auto sort
+    QHeaderView *header = table->horizontalHeader();
+    // make columns stretch to fill available width
+    header->setSectionResizeMode(QHeaderView::Stretch);
+    table->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    connect(header, &QHeaderView::sectionClicked, this, &CrawlerWindow::onHeaderClicked);
+    mainLayout->addWidget(table);
+
+    // page
+    QHBoxLayout *pageLayout = new QHBoxLayout;
+    prevButton = new QPushButton("上一页");
+    pageSpin = new QSpinBox;
+    pageSpin->setMinimum(1);
+    totalLabel = new QLabel("/ 1");
+    nextButton = new QPushButton("下一页");
+    pageLayout->addWidget(prevButton);
+    pageLayout->addWidget(pageSpin);
+    pageLayout->addWidget(totalLabel);
+    pageLayout->addWidget(nextButton);
+    // 每页显示数量设置
+    QLabel *pageSizeLabel = new QLabel("每页:");
+    pageSizeSpin = new QSpinBox;
+    pageSizeSpin->setRange(1, 200);
+    pageSizeSpin->setValue(pageSize);
+    pageLayout->addWidget(pageSizeLabel);
+    pageLayout->addWidget(pageSizeSpin);
+    mainLayout->addLayout(pageLayout);
+
+    setCentralWidget(central);
+
+    // connect
+    connect(searchButton, &QPushButton::clicked, this, [this]() { onSearchClicked(true); });
+    connect(refreshButton, &QPushButton::clicked, this, [this]() { onSearchClicked(true); });
+    connect(crawlButton, &QPushButton::clicked, this, &CrawlerWindow::onCrawlButtonClicked);
+    connect(prevButton, &QPushButton::clicked, this, [this]() { onPrevPage(); });
+    connect(nextButton, &QPushButton::clicked, this, [this]() { onNextPage(); });
+    connect(pageSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int page) { onPageChanged(page); });
+    // apply page size only when user confirms
+    QPushButton *applyPageSizeBtn = new QPushButton("确定");
+    pageLayout->addWidget(applyPageSizeBtn);
+    connect(applyPageSizeBtn, &QPushButton::clicked, this, [this]() {
+        pageSize = pageSizeSpin->value();
+        currentPage = 1;
+        onSearchClicked(true);
+    });
+
+    // Initial load
+    onSearchClicked(true);
+}
+
+void CrawlerWindow::onCrawlButtonClicked() {
+    QDialog dialog(this);
+    dialog.setWindowTitle("爬取设置");
+    QVBoxLayout *layout = new QVBoxLayout(&dialog);
+    QLabel *labelPages = new QLabel("为每个来源设置爬取页数（未勾选的来源将被忽略）:");
+    layout->addWidget(labelPages);
+
+    // list of available sources with per-source spinboxes
+    QListWidget *listSources = new QListWidget();
+    QStringList sources = {"liepin", "nowcode", "zhipin", "chinahr", "wuyi"};
+    struct ItemWidgets { QCheckBox *check; QSpinBox *spin; };
+    std::vector<ItemWidgets> widgets;
+    for (const QString &source : sources) {
+        QListWidgetItem *item = new QListWidgetItem();
+        QWidget *w = new QWidget();
+        QHBoxLayout *h = new QHBoxLayout(w);
+        QCheckBox *cb = new QCheckBox(source);
+        cb->setChecked(true);
+        QSpinBox *sp = new QSpinBox();
+        sp->setRange(1, 100);
+        sp->setValue(10);
+        h->addWidget(cb);
+        h->addStretch();
+        h->addWidget(new QLabel("页数:"));
+        h->addWidget(sp);
+        h->setContentsMargins(2,2,2,2);
+        listSources->addItem(item);
+        item->setSizeHint(w->sizeHint());
+        listSources->setItemWidget(item, w);
+        widgets.push_back({cb, sp});
+    }
+    layout->addWidget(listSources);
+    QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    layout->addWidget(buttonBox);
+    connect(buttonBox, &QDialogButtonBox::accepted, &dialog, [this, listSources, sources, widgets]() {
+        std::vector<std::string> selectedSources;
+        std::vector<int> pagesList;
+        for (int i = 0; i < listSources->count() && i < (int)widgets.size(); ++i) {
+            if (widgets[i].check->isChecked()) {
+                selectedSources.push_back(sources[i].toStdString());
+                pagesList.push_back(widgets[i].spin->value());
+            }
+        }
+        if (!selectedSources.empty()) {
+            CrawlProgressWindow *progressWindow = new CrawlProgressWindow(selectedSources, pagesList, this);
+            progressWindow->show();
+        }
+    });
+    connect(buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    dialog.exec();
+}
+
+void CrawlerWindow::onSearchClicked(bool refresh) {
+    PresenterTask presenterTask;
+    auto result = presenterTask.queryJobsWithPaging(searchLineEdit->text(), getFieldFilters(), sortField, asc, currentPage, pageSize, refresh);
+    allJobs = result.allData;
+    fillTable(result.pageData);
+    populateFilters(allJobs);
+    pageSpin->setMaximum(result.totalPage);
+    pageSpin->setValue(result.currentPage);
+    totalLabel->setText(QString("/ %1").arg(result.totalPage));
+}
+
+void CrawlerWindow::onPrevPage() {
+    if (currentPage > 1) {
+        currentPage--;
+        onSearchClicked(false);
+    }
+}
+
+void CrawlerWindow::onNextPage() {
+    currentPage++;
+    onSearchClicked(false);
+}
+
+void CrawlerWindow::onPageChanged(int page) {
+    currentPage = page;
+    onSearchClicked(false);
+}
+
+void CrawlerWindow::onHeaderClicked(int logicalIndex) {
+    QString headerText = table->horizontalHeaderItem(logicalIndex)->text();
+    QString newSortField = fieldMap.value(headerText, "");
+    if (newSortField.isEmpty()) return;
+    if (sortField == newSortField) {
+        asc = !asc;
+    } else {
+        sortField = newSortField;
+        asc = true;
+    }
+    onSearchClicked(false);
+}
+
+void CrawlerWindow::fillTable(const QVector<SQLNS::JobInfoPrint> &jobs) {
+    table->setRowCount(jobs.size());
+    for (int i = 0; i < jobs.size(); ++i) {
+        const auto &job = jobs[i];
+        table->setItem(i, 0, new QTableWidgetItem(QString::number(job.jobId)));
+        table->setItem(i, 1, new QTableWidgetItem(job.jobName));
+        table->setItem(i, 2, new QTableWidgetItem(job.recruitTypeName));
+        table->setItem(i, 3, new QTableWidgetItem(job.cityName));
+        QString salary = (job.salaryMin == 0) ? "面议" : QString("%1-%2").arg(job.salaryMin).arg(job.salaryMax);
+        table->setItem(i, 4, new QTableWidgetItem(salary));
+        table->setItem(i, 5, new QTableWidgetItem(job.sourceName));
+        QString tags = job.tagNames.mid(0, 3).join(", ");
+        table->setItem(i, 6, new QTableWidgetItem(tags));
+        QPushButton *viewButton = new QPushButton("查看");
+        connect(viewButton, &QPushButton::clicked, this, [this, job]() { showJobDetail(job); });
+        table->setCellWidget(i, 7, viewButton);
+    }
+}
+
+void CrawlerWindow::populateFilters(const QVector<SQLNS::JobInfoPrint> &jobs) {
+    QSet<QString> salaries, tags, cities, recruitTypes, sources;
+    for (const auto &job : jobs) {
+        // use salarySlabId for filtering
+        salaries.insert(QString::number(job.salarySlabId));
+        for (const auto &tag : job.tagNames) tags.insert(tag);
+        cities.insert(job.cityName);
+        recruitTypes.insert(job.recruitTypeName);
+        sources.insert(job.sourceName);
+    }
+
+    filterOptions["salary"] = salaries;
+    filterOptions["tagNames"] = tags;
+    filterOptions["cityName"] = cities;
+    filterOptions["recruitTypeName"] = recruitTypes;
+    filterOptions["sourceName"] = sources;
+}
+
+QMap<QString, QVector<QString>> CrawlerWindow::getFieldFilters() {
+    return currentFilters;
+}
+
+void CrawlerWindow::showFilterDialog(const QString &field, QPushButton *button) {
+    QDialog dialog(this);
+    dialog.setWindowTitle(button->text());
+    QVBoxLayout *layout = new QVBoxLayout(&dialog);
+
+    QLineEdit *searchEdit = new QLineEdit;
+    searchEdit->setPlaceholderText("搜索...");
+    layout->addWidget(searchEdit);
+
+    QCheckBox *selectAll = new QCheckBox("全选");
+    layout->addWidget(selectAll);
+
+    QListWidget *listWidget = new QListWidget;
+    layout->addWidget(listWidget);
+
+    // Populate listWidget with items from filterOptions (sorted alphabetically)
+    const QSet<QString> &optionsSet = filterOptions.value(field);
+    QStringList optionsList;
+    for (const QString &opt : optionsSet) optionsList << opt;
+    optionsList.sort(Qt::CaseInsensitive);
+    QVector<QString> currentChecked = currentFilters.value(field);
+    for (const QString &option : optionsList) {
+        QListWidgetItem *item = new QListWidgetItem(option);
+        item->setCheckState(currentChecked.contains(option) ? Qt::Checked : Qt::Unchecked);
+        listWidget->addItem(item);
+    }
+
+    connect(searchEdit, &QLineEdit::textChanged, [listWidget](const QString &text) {
+        for (int i = 0; i < listWidget->count(); ++i) {
+            QListWidgetItem *item = listWidget->item(i);
+            item->setHidden(!item->text().contains(text, Qt::CaseInsensitive));
+        }
+    });
+
+    connect(selectAll, &QCheckBox::toggled, [listWidget](bool checked) {
+        for (int i = 0; i < listWidget->count(); ++i) {
+            listWidget->item(i)->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
+        }
+    });
+
+    QHBoxLayout *buttonLayout = new QHBoxLayout;
+    buttonLayout->addStretch();
+    QPushButton *cancelBtn = new QPushButton("取消");
+    QPushButton *okBtn = new QPushButton("确认");
+    buttonLayout->addWidget(cancelBtn);
+    buttonLayout->addWidget(okBtn);
+    layout->addLayout(buttonLayout);
+
+    connect(cancelBtn, &QPushButton::clicked, &dialog, &QDialog::reject);
+    connect(okBtn, &QPushButton::clicked, &dialog, [this, &dialog, listWidget, field]() {
+        QVector<QString> checked;
+        for (int i = 0; i < listWidget->count(); ++i) {
+            if (listWidget->item(i)->checkState() == Qt::Checked) {
+                checked.append(listWidget->item(i)->text());
+            }
+        }
+        currentFilters[field] = checked;
+        onSearchClicked(false);
+        dialog.accept();
+    });
+
+    dialog.exec();
+}
+
+void CrawlerWindow::showJobDetail(const SQLNS::JobInfoPrint &job) {
+    QDialog dialog(this);
+    dialog.setWindowTitle("职位详情");
+    QVBoxLayout *layout = new QVBoxLayout(&dialog);
+    layout->addWidget(new QLabel(QString("职位ID: %1").arg(job.jobId)));
+    layout->addWidget(new QLabel(QString("职位名称: %1").arg(job.jobName)));
+    layout->addWidget(new QLabel(QString("公司: %1").arg(job.companyName)));
+    layout->addWidget(new QLabel(QString("招聘类型: %1").arg(job.recruitTypeName)));
+    layout->addWidget(new QLabel(QString("城市: %1").arg(job.cityName)));
+    layout->addWidget(new QLabel(QString("来源: %1").arg(job.sourceName)));
+    layout->addWidget(new QLabel(QString("薪资: %1-%2").arg(job.salaryMin).arg(job.salaryMax)));
+    layout->addWidget(new QLabel(QString("要求: %1").arg(job.requirements)));
+    layout->addWidget(new QLabel(QString("标签: %1").arg(job.tagNames.join(", "))));
+    layout->addWidget(new QLabel(QString("创建时间: %1").arg(job.createTime)));
+    layout->addWidget(new QLabel(QString("更新时间: %1").arg(job.updateTime)));
+    layout->addWidget(new QLabel(QString("HR最后登录: %1").arg(job.hrLastLoginTime)));
+    QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok);
+    layout->addWidget(buttonBox);
+    connect(buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    dialog.exec();
+}
+
+void CrawlerWindow::onClearFilters() {
+    currentFilters.clear();
+    onSearchClicked(false);
+}
+
+void CrawlerWindow::closeEvent(QCloseEvent *event) {
+    emit returnToLauncher();
+    event->accept();
+}

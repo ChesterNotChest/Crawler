@@ -65,6 +65,8 @@ QVector<SQLNS::JobInfoPrint> Presenter::searchJobs(const QVector<SQLNS::JobInfoP
         for (auto it = fieldFilters.constBegin(); it != fieldFilters.constEnd(); ++it) {
             const QString field = it.key();
             const QVector<QString> vals = it.value();
+            // 如果该字段的筛选值为空，则跳过该字段的筛选
+            if (vals.isEmpty()) continue;
             bool fieldMatched = false;
 
             if (field == "jobId") {
@@ -93,6 +95,18 @@ QVector<SQLNS::JobInfoPrint> Presenter::searchJobs(const QVector<SQLNS::JobInfoP
             } else if (field == "sourceName") {
                 for (const auto &v : vals) {
                     if (job.sourceName.contains(v, Qt::CaseInsensitive)) { fieldMatched = true; break; }
+                }
+            } else if (field == "recruitTypeName") {
+                for (const auto &v : vals) {
+                    if (job.recruitTypeName.contains(v, Qt::CaseInsensitive)) { fieldMatched = true; break; }
+                }
+            } else if (field == "salary") {
+                    // salary filter now uses salarySlabId (integer) matching
+                    for (const auto &v : vals) {
+                        bool ok = false;
+                        int q = v.toInt(&ok);
+                        if (!ok) continue;
+                        if (job.salarySlabId == q) { fieldMatched = true; break; }
                 }
             } else if (field == "tagNames" || field == "tags") {
                 for (const auto &v : vals) {

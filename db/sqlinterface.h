@@ -7,6 +7,7 @@
 
 // 数据结构定义
 #include "constants/db_types.h"
+#include <QSqlDatabase>
 
 class SQLInterface {
 public:
@@ -47,6 +48,10 @@ public:
 
 private:
     bool openSqliteConnection(const QString &dbFilePath);
+    // stored DB file path to lazily open per-thread connections
+    QString m_dbFilePath;
+    // helper to get or create QSqlDatabase for the current thread
+    QSqlDatabase databaseForCurrentThread();
 };
 
 #endif // SQLINTERFACE_H

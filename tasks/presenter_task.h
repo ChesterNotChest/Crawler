@@ -27,12 +27,17 @@ public:
     // - asc: 是否升序
     // - page: 当前页（从1开始）
     // - pageSize: 每页大小
+    // - refresh: 是否重新从数据库读取数据
     static TaskNS::PagingResult queryJobsWithPaging(const QString& query,
                                                     const QMap<QString, QVector<QString>>& fieldFilters,
                                                     const QString& sortField,
                                                     bool asc,
                                                     int page,
-                                                    int pageSize);
+                                                    int pageSize,
+                                                    bool refresh = true);
+
+private:
+    static QVector<SQLNS::JobInfoPrint> cachedJobs;
 };
 
 #endif // PRESENTER_TASK_H

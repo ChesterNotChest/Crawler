@@ -67,6 +67,10 @@ set(PROJECT_SOURCES
         cppGUI/chatwindow.cpp
         cppGUI/launcherwindow.h
         cppGUI/launcherwindow.cpp
+        cppGUI/crawlerwindow.h
+        cppGUI/crawlerwindow.cpp
+        cppGUI/crawlprogresswindow.h
+        cppGUI/crawlprogresswindow.cpp
 )
 
 # 网络爬虫源文件
@@ -113,6 +117,9 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         ${PROJECT_SOURCES}
         ${NETWORK_SOURCES}
         ${TEST_SOURCES}
+        cppGUI/crawlerwindow.h cppGUI/crawlerwindow.cpp
+
+
     )
 
     # WebView2 静态库目录和链接（仅Qt6下）

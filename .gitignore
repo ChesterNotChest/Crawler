@@ -36,6 +36,8 @@ Thumbs.db
 /.qmake.cache
 /.qmake.stash
 /logs
+/.vs
+/out
 
 /.venv
 

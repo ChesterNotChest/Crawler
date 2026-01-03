@@ -2,6 +2,7 @@
 #include <QDebug>
 #include <QTimer>
 #include <QEventLoop>
+#include <QThread>
 #include "webview2_browser_wrl.h"
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -27,7 +28,21 @@ std::pair<std::vector<JobInfo>, MappingData> WuyiCrawler::crawlWuyi(int pageNo, 
     std::unique_ptr<WebView2BrowserWRL> ownedBrowser;
     if (externalBrowser) {
         browserPtr = externalBrowser;
+        // Ensure capture is enabled on external browser and for pages >1, request a click to navigate
+        QMetaObject::invokeMethod(browserPtr, "enableRequestCapture", Qt::QueuedConnection, Q_ARG(bool, true));
+        if (pageNo > 1) {
+            // Ask GUI thread to click next; crawlWuyi will then wait for the responseCaptured
+            QMetaObject::invokeMethod(browserPtr, "clickNext", Qt::QueuedConnection);
+        }
     } else {
+        // 如果未提供外部浏览器且当前在非GUI线程，则返回提示，避免在子线程创建 QWidget
+        if (QCoreApplication::instance() && QThread::currentThread() != QCoreApplication::instance()->thread()) {
+            qDebug() << "[WuyiCrawler] crawlWuyi 在非GUI线程被调用且未提供 browser，需由主线程提供 WebView2 实例";
+            MappingData md;
+            md.last_api_code = 38;
+            md.last_api_message = "requires_gui_browser";
+            return {{}, md};
+        }
         ownedBrowser.reset(new WebView2BrowserWRL());
         browserPtr = ownedBrowser.get();
         browserPtr->enableRequestCapture(true);
@@ -36,7 +51,7 @@ std::pair<std::vector<JobInfo>, MappingData> WuyiCrawler::crawlWuyi(int pageNo, 
         browserPtr->fetchCookies(url);
     }
 
-    QObject::connect(browserPtr, &WebView2BrowserWRL::responseCaptured, [&](const QString& url, const QString& body){
+    QObject::connect(browserPtr, &WebView2BrowserWRL::responseCaptured, &loop, [&](const QString& url, const QString& body){
         Q_UNUSED(url);
         if (!body.isEmpty()) {
             rawJson = body;
@@ -46,7 +61,7 @@ std::pair<std::vector<JobInfo>, MappingData> WuyiCrawler::crawlWuyi(int pageNo, 
         }
     });
 
-    QObject::connect(browserPtr, &WebView2BrowserWRL::navigationFailed, [&](const QString& reason){
+    QObject::connect(browserPtr, &WebView2BrowserWRL::navigationFailed, &loop, [&](const QString& reason){
         qDebug() << "[WuyiCrawler] navigationFailed:" << reason;
         if (loop.isRunning()) loop.quit();
     });

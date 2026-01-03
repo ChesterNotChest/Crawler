@@ -5,12 +5,17 @@
 #include <QSqlError>
 #include <QVariant>
 #include <QDebug>
+#include <QThread>
 
 SQLInterface::SQLInterface() {}
 SQLInterface::~SQLInterface() { disconnect(); }
 
 bool SQLInterface::openSqliteConnection(const QString &dbFilePath) {
-	const QString connName = QStringLiteral("crawler_conn");
+
+	// store DB path for lazy per-thread connection creation
+	m_dbFilePath = dbFilePath;
+	// create a connection for the current thread as an initial connection
+	const QString connName = QStringLiteral("crawler_conn_%1").arg((quintptr)QThread::currentThreadId());
 	QSqlDatabase db;
 	if (QSqlDatabase::contains(connName)) {
 		db = QSqlDatabase::database(connName);
@@ -30,20 +35,32 @@ bool SQLInterface::connectSqlite(const QString &dbFilePath) {
 }
 
 bool SQLInterface::isConnected() const {
-	const QString connName = QStringLiteral("crawler_conn");
-	if (!QSqlDatabase::contains(connName)) return false;
-	const QSqlDatabase db = QSqlDatabase::database(connName);
+	// Ensure there is a DB file path configured
+	if (m_dbFilePath.isEmpty()) return false;
+	// Attempt to get or create a connection for this thread.
+	// NOTE: databaseForCurrentThread() is non-const; create a temporary non-const pointer to call it.
+	SQLInterface *self = const_cast<SQLInterface*>(this);
+	QSqlDatabase db;
+	try {
+		db = self->databaseForCurrentThread();
+	} catch (...) {
+		return false;
+	}
 	return db.isValid() && db.isOpen();
 }
 
 void SQLInterface::disconnect() {
-	const QString connName = QStringLiteral("crawler_conn");
-	if (!QSqlDatabase::contains(connName)) return;
-	{
-		QSqlDatabase db = QSqlDatabase::database(connName);
-		if (db.isOpen()) db.close();
+	// remove all crawler_conn_* connections
+	const auto names = QSqlDatabase::connectionNames();
+	for (const QString &name : names) {
+		if (name.startsWith("crawler_conn_")) {
+			if (QSqlDatabase::contains(name)) {
+				QSqlDatabase db = QSqlDatabase::database(name);
+				if (db.isOpen()) db.close();
+			}
+			QSqlDatabase::removeDatabase(name);
+		}
 	}
-	QSqlDatabase::removeDatabase(connName);
 }
 
 bool SQLInterface::createAllTables() {
@@ -51,8 +68,7 @@ bool SQLInterface::createAllTables() {
 		qDebug() << "Not connected; cannot create tables.";
 		return false;
 	}
-	const QString connName = QStringLiteral("crawler_conn");
-	QSqlDatabase db = QSqlDatabase::database(connName);
+	QSqlDatabase db = databaseForCurrentThread();
 
 	// Source (数据来源表)
 	QSqlQuery q(db);
@@ -216,8 +232,7 @@ bool SQLInterface::createAllTables() {
 // Source operations
 int SQLInterface::insertSource(const SQLNS::Source &source) {
 	if (!isConnected()) return -1;
-	const QString connName = QStringLiteral("crawler_conn");
-	QSqlDatabase db = QSqlDatabase::database(connName);
+	QSqlDatabase db = databaseForCurrentThread();
 	QSqlQuery q(db);
 	q.prepare("INSERT OR IGNORE INTO Source(sourceName, sourceCode, baseUrl, enabled, createdAt, updatedAt) "
 			  "VALUES(:name, :code, :url, :enabled, datetime('now'), datetime('now'))");
@@ -238,8 +253,7 @@ SQLNS::Source SQLInterface::querySourceById(int sourceId) {
 	SQLNS::Source source;
 	source.sourceId = -1;
 	if (!isConnected()) return source;
-	const QString connName = QStringLiteral("crawler_conn");
-	QSqlDatabase db = QSqlDatabase::database(connName);
+	QSqlDatabase db = databaseForCurrentThread();
 	QSqlQuery q(db);
 	q.prepare("SELECT sourceId, sourceName, sourceCode, baseUrl, enabled, createdAt, updatedAt "
 			  "FROM Source WHERE sourceId = :id");
@@ -260,8 +274,7 @@ SQLNS::Source SQLInterface::querySourceByCode(const QString &sourceCode) {
 	SQLNS::Source source;
 	source.sourceId = -1;
 	if (!isConnected()) return source;
-	const QString connName = QStringLiteral("crawler_conn");
-	QSqlDatabase db = QSqlDatabase::database(connName);
+	QSqlDatabase db = databaseForCurrentThread();
 	QSqlQuery q(db);
 	q.prepare("SELECT sourceId, sourceName, sourceCode, baseUrl, enabled, createdAt, updatedAt "
 			  "FROM Source WHERE sourceCode = :code");
@@ -281,8 +294,7 @@ SQLNS::Source SQLInterface::querySourceByCode(const QString &sourceCode) {
 QVector<SQLNS::Source> SQLInterface::queryAllSources() {
 	QVector<SQLNS::Source> sources;
 	if (!isConnected()) return sources;
-	const QString connName = QStringLiteral("crawler_conn");
-	QSqlDatabase db = QSqlDatabase::database(connName);
+	QSqlDatabase db = databaseForCurrentThread();
 	QSqlQuery q(db);
 	if (q.exec("SELECT sourceId, sourceName, sourceCode, baseUrl, enabled, createdAt, updatedAt FROM Source")) {
 		while (q.next()) {
@@ -303,8 +315,7 @@ QVector<SQLNS::Source> SQLInterface::queryAllSources() {
 QVector<SQLNS::Source> SQLInterface::queryEnabledSources() {
 	QVector<SQLNS::Source> sources;
 	if (!isConnected()) return sources;
-	const QString connName = QStringLiteral("crawler_conn");
-	QSqlDatabase db = QSqlDatabase::database(connName);
+	QSqlDatabase db = databaseForCurrentThread();
 	QSqlQuery q(db);
 	if (q.exec("SELECT sourceId, sourceName, sourceCode, baseUrl, enabled, createdAt, updatedAt "
 			   "FROM Source WHERE enabled = 1")) {
@@ -325,8 +336,7 @@ QVector<SQLNS::Source> SQLInterface::queryEnabledSources() {
 
 int SQLInterface::insertCompany(int companyId, const QString &companyName) {
 	if (!isConnected()) return -1;
-	const QString connName = QStringLiteral("crawler_conn");
-	QSqlDatabase db = QSqlDatabase::database(connName);
+	QSqlDatabase db = databaseForCurrentThread();
 
 	// Insert or ignore if the company already exists (avoid UNIQUE constraint errors)
 	{
@@ -370,8 +380,7 @@ int SQLInterface::insertCompany(int companyId, const QString &companyName) {
 
 int SQLInterface::insertCity(const QString &cityName) {
 	if (!isConnected()) return -1;
-	const QString connName = QStringLiteral("crawler_conn");
-	QSqlDatabase db = QSqlDatabase::database(connName);
+	QSqlDatabase db = databaseForCurrentThread();
 	QSqlQuery q(db);
 	q.prepare("INSERT OR IGNORE INTO JobCity(cityName) VALUES(:name)");
 	q.bindValue(":name", cityName);
@@ -386,8 +395,7 @@ int SQLInterface::insertCity(const QString &cityName) {
 
 int SQLInterface::insertTag(const QString &tagName) {
 	if (!isConnected()) return -1;
-	const QString connName = QStringLiteral("crawler_conn");
-	QSqlDatabase db = QSqlDatabase::database(connName);
+	QSqlDatabase db = databaseForCurrentThread();
 	QSqlQuery q(db);
 	q.prepare("INSERT OR IGNORE INTO JobTag(tagName) VALUES(:name)");
 	q.bindValue(":name", tagName);
@@ -402,38 +410,53 @@ int SQLInterface::insertTag(const QString &tagName) {
 
 int SQLInterface::insertJob(const SQLNS::JobInfo &job) {
 	if (!isConnected()) return -1;
-	const QString connName = QStringLiteral("crawler_conn");
-	QSqlDatabase db = QSqlDatabase::database(connName);
-	QSqlQuery q(db);
-	q.prepare(
-		"INSERT INTO Job(jobId, jobName, companyId, recruitTypeId, cityId, sourceId, "
-		"requirements, salaryMin, salaryMax, salarySlabId, createTime, updateTime, hrLastLoginTime) "
-		"VALUES(:jobId, :jobName, :companyId, :recruitTypeId, :cityId, :sourceId, "
-		":requirements, :salaryMin, :salaryMax, :salarySlabId, :createTime, :updateTime, :hrLastLoginTime)");
-	q.bindValue(":jobId", QVariant::fromValue<qlonglong>(job.jobId));
-	q.bindValue(":jobName", job.jobName);
-	q.bindValue(":companyId", job.companyId);
-	q.bindValue(":recruitTypeId", job.recruitTypeId);
-	q.bindValue(":cityId", job.cityId);
-	q.bindValue(":sourceId", job.sourceId);
-	q.bindValue(":requirements", job.requirements);
-	q.bindValue(":salaryMin", job.salaryMin);
-	q.bindValue(":salaryMax", job.salaryMax);
-	q.bindValue(":salarySlabId", job.salarySlabId);
-	q.bindValue(":createTime", job.createTime);
-	q.bindValue(":updateTime", job.updateTime);
-	q.bindValue(":hrLastLoginTime", job.hrLastLoginTime);
-	if (!q.exec()) {
-		qDebug() << "Insert Job failed:" << q.lastError().text();
-		return -1;
+	QSqlDatabase db = databaseForCurrentThread();
+	{
+		QSqlQuery q(db);
+		q.prepare(
+			"INSERT OR IGNORE INTO Job(jobId, jobName, companyId, recruitTypeId, cityId, sourceId, "
+			"requirements, salaryMin, salaryMax, salarySlabId, createTime, updateTime, hrLastLoginTime) "
+			"VALUES(:jobId, :jobName, :companyId, :recruitTypeId, :cityId, :sourceId, "
+			":requirements, :salaryMin, :salaryMax, :salarySlabId, :createTime, :updateTime, :hrLastLoginTime)");
+		q.bindValue(":jobId", QVariant::fromValue<qlonglong>(job.jobId));
+		q.bindValue(":jobName", job.jobName);
+		q.bindValue(":companyId", job.companyId);
+		q.bindValue(":recruitTypeId", job.recruitTypeId);
+		q.bindValue(":cityId", job.cityId);
+		q.bindValue(":sourceId", job.sourceId);
+		q.bindValue(":requirements", job.requirements);
+		q.bindValue(":salaryMin", job.salaryMin);
+		q.bindValue(":salaryMax", job.salaryMax);
+		q.bindValue(":salarySlabId", job.salarySlabId);
+		q.bindValue(":createTime", job.createTime);
+		q.bindValue(":updateTime", job.updateTime);
+		q.bindValue(":hrLastLoginTime", job.hrLastLoginTime);
+		if (!q.exec()) {
+			qDebug() << "Insert Job failed:" << q.lastError().text();
+			qDebug() << "Query:" << q.lastQuery();
+			qDebug() << "DB connection:" << db.connectionName() << " valid:" << db.isValid() << " open:" << db.isOpen();
+			qDebug() << "Job debug -> jobId:" << job.jobId << " jobName:" << job.jobName << " companyId:" << job.companyId << " sourceId:" << job.sourceId;
+			return -1;
+		}
 	}
-	return static_cast<int>(job.jobId);
+
+	// Ensure the row exists (either newly inserted or pre-existing)
+	{
+		QSqlQuery q2(db);
+		q2.prepare("SELECT jobId FROM Job WHERE jobId = :jobId");
+		q2.bindValue(":jobId", QVariant::fromValue<qlonglong>(job.jobId));
+		if (q2.exec() && q2.next()) {
+			return static_cast<int>(job.jobId);
+		} else {
+			qDebug() << "Insert Job: verify select failed:" << q2.lastError().text();
+			return -1;
+		}
+	}
 }
 
 bool SQLInterface::insertJobTagMapping(long long jobId, int tagId) {
 	if (!isConnected()) return false;
-	const QString connName = QStringLiteral("crawler_conn");
-	QSqlDatabase db = QSqlDatabase::database(connName);
+	QSqlDatabase db = databaseForCurrentThread();
 	QSqlQuery q(db);
 	q.prepare("INSERT OR IGNORE INTO JobTagMapping(jobId, tagId) VALUES(:jobId, :tagId)");
 	q.bindValue(":jobId", QVariant::fromValue<qlonglong>(jobId));
@@ -444,8 +467,7 @@ bool SQLInterface::insertJobTagMapping(long long jobId, int tagId) {
 QVector<SQLNS::JobInfo> SQLInterface::queryAllJobs() {
 	QVector<SQLNS::JobInfo> jobs;
 	if (!isConnected()) return jobs;
-	const QString connName = QStringLiteral("crawler_conn");
-	QSqlDatabase db = QSqlDatabase::database(connName);
+	QSqlDatabase db = databaseForCurrentThread();
 	QSqlQuery q(db);
 	if (!q.exec("SELECT jobId, jobName, companyId, recruitTypeId, cityId, sourceId, requirements, "
 				"salaryMin, salaryMax, salarySlabId, createTime, updateTime, hrLastLoginTime "
@@ -491,8 +513,7 @@ QVector<SQLNS::JobInfo> SQLInterface::queryAllJobs() {
 QVector<SQLNS::JobInfoPrint> SQLInterface::queryAllJobsPrint() {
 	QVector<SQLNS::JobInfoPrint> jobs;
 	if (!isConnected()) return jobs;
-	const QString connName = QStringLiteral("crawler_conn");
-	QSqlDatabase db = QSqlDatabase::database(connName);
+	QSqlDatabase db = databaseForCurrentThread();
 	QSqlQuery q(db);
 	if (!q.exec("SELECT jobId, jobName, companyId, recruitTypeId, cityId, sourceId, requirements, "
 				"salaryMin, salaryMax, salarySlabId, createTime, updateTime, hrLastLoginTime "
@@ -564,4 +585,17 @@ QVector<SQLNS::JobInfoPrint> SQLInterface::queryAllJobsPrint() {
 		jobs.append(job);
 	}
 	return jobs;
+}
+
+QSqlDatabase SQLInterface::databaseForCurrentThread() {
+	QString connName = QStringLiteral("crawler_conn_%1").arg((quintptr)QThread::currentThreadId());
+	if (QSqlDatabase::contains(connName)) {
+		return QSqlDatabase::database(connName);
+	}
+	QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connName);
+	db.setDatabaseName(m_dbFilePath);
+	if (!db.open()) {
+		qDebug() << "Failed to open DB for thread:" << connName << db.lastError().text();
+	}
+	return db;
 }

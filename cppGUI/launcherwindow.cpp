@@ -16,11 +16,11 @@
 #include <QStyleFactory>
 #include <QGuiApplication>
 #include <QScreen>
-#include <QScreen>
 #include <QMessageBox>
 #include "../tasks/backend_manager_task.h"
 #include "chatwindow.h"
 #include "tasks/ai_transfer_task.h"
+#include "crawlerwindow.h"
 
 LauncherWindow::LauncherWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -430,8 +430,18 @@ void LauncherWindow::openChatWindow()
 
 void LauncherWindow::onCrawlerButtonClicked()
 {
-    // TODO: 实现爬虫功能
-    QMessageBox::information(this, "功能开发中", "职位爬虫功能正在开发中，敬请期待！");
+    // 打开爬虫界面
+    CrawlerWindow *crawler = new CrawlerWindow(this);
+    // 当爬虫窗口关闭或返回时，显示Launcher
+    connect(crawler, &CrawlerWindow::returnToLauncher, this, [this, crawler]() {
+        this->showNormal();
+        this->activateWindow();
+        this->raise();
+        crawler->deleteLater();
+    });
+
+    crawler->show();
+    hide();
 }
 
 void LauncherWindow::onSettingsButtonClicked()
