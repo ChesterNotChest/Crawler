@@ -10,6 +10,7 @@
 #include "ai_transfer_task.h"
 #include <QJsonObject>
 #include "config/config_manager.h"
+#include "maintenance/email_alert.h"
 
 
 CrawlerTask::CrawlerTask(SQLInterface *sqlInterface, WebView2BrowserWRL *sessionBrowser)
@@ -152,9 +153,15 @@ int CrawlerTask::crawlAll(const std::vector<std::string>& sources, const std::ve
             // decide effective expected pages for reporting
             int effectiveExpected = (expectedPagesForSource > 0) ? expectedPagesForSource : (perSourceMax > 0 ? perSourceMax : (mapping.totalPage > 0 ? mapping.totalPage : 10));
 
-            // 任意来源遇到反爬码37则更新cookie并重试一次
+            // 任意来源遇到反爬码37则发送告警、更新cookie并重试一次
             if (mapping.last_api_code == 37) {
-                qDebug() << "[CrawlerTask] 检测到 反爬码 37，尝试更新 cookie 并重试此页...";
+                qDebug() << "[CrawlerTask] 检测到 反爬码 37，发送告警并尝试更新 cookie 重试此页...";
+                // Send immediate email alert (best-effort). Maintenance will skip if config missing.
+                QString subj = QString::fromUtf8("反爬码37 - %1").arg(QString::fromStdString(src));
+                QString body = QString::fromUtf8("Detected anti-crawl code 37 on source %1 page %2. jobs=%3 totalPage=%4")
+                        .arg(QString::fromStdString(src)).arg(page).arg(static_cast<int>(jobs.size())).arg(mapping.totalPage);
+                Maintenance::sendEmailAlertAsync(subj, body);
+
                 bool ok = false;
                 // 如果来源需要浏览器会话并且我们有主线程创建的 session browser，则使用它来更新cookie
                 if ((src == "wuyi" || src == "liepin" || src == "zhipin") && m_sessionBrowser) {
@@ -163,10 +170,8 @@ int CrawlerTask::crawlAll(const std::vector<std::string>& sources, const std::ve
                     ok = m_internetTask.updateCookieBySource(src);
                 }
                 if (ok) {
-                    qDebug() << "[CrawlerTask] cookie 更新成功，重试第" << page << "页...";
-                        qDebug() << "[CrawlerTask] cookie 更新成功，稍作等待后重试第" << page << "页...";
-                        // give the system and server a moment to accept the new cookie/session
-                        QThread::msleep(2000);
+                    qDebug() << "[CrawlerTask] cookie 更新成功，稍作等待后重试第" << page << "页...";
+                    QThread::msleep(2000);
                     if ((src == "wuyi" || src == "liepin") && m_sessionBrowser) {
                         std::tie(jobs, mapping) = m_internetTask.fetchBySource(src, page, pageSize, m_sessionBrowser, currentRecruitType, currentCity);
                     } else {

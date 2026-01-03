@@ -96,31 +96,41 @@ bool InternetTask::updateCookieBySource(const std::string& sourceCode, int timeo
     bool got = false;
     QString finalCookies;
 
-    QObject::connect(&browser, &WebView2BrowserWRL::cookieFetched, [&](const QString& cookies){
-        qDebug() << "[InternetTask] WebView2 返回 cookie 长度:" << cookies.length();
-        got = true;
-        finalCookies = cookies;
-        if (loop.isRunning()) loop.quit();
-    });
     QObject::connect(&browser, &WebView2BrowserWRL::navigationFailed, [&](const QString& reason){
         qDebug() << "[InternetTask] WebView2 导航失败:" << reason;
         if (loop.isRunning()) loop.quit();
     });
 
-    // 先访问首页，再访问职位列表页以触发完整cookie链
-    // Use ephemeral user-data-folder to avoid reusing persistent profile
-    browser.fetchCookiesEphemeral(homeUrl);
+    // Collect multiple cookieFetched events and use the longest result after a short "settle" period.
+    QTimer settleTimer(&loop);
+    settleTimer.setSingleShot(true);
+    QObject::connect(&browser, &WebView2BrowserWRL::cookieFetched, [&](const QString& cookies){
+        qDebug() << "[InternetTask] WebView2 返回 cookie 长度:" << cookies.length();
+        if (cookies.length() > finalCookies.length()) finalCookies = cookies;
+        // restart settle timer to wait for further cookie updates
+        settleTimer.start(800);
+    });
+    QObject::connect(&settleTimer, &QTimer::timeout, &loop, [&](){
+        got = true;
+        if (loop.isRunning()) loop.quit();
+    });
+
+    // 优先尝试列表页以获取完整cookie链（某些站点列表页会设置更多cookie）
+    browser.fetchCookiesEphemeral(listUrl);
     QTimer::singleShot(timeoutMs, &loop, &QEventLoop::quit);
     loop.exec();
 
-    // 如果首页未取得cookie，再试列表页
+    // 若列表页未取得cookie，再回退尝试首页
     if (!got) {
-        qDebug() << "[InternetTask] 首页未获取到cookie，尝试列表页";
-        browser.fetchCookiesEphemeral(listUrl);
-        
-        QEventLoop loop2;
-        QTimer::singleShot(timeoutMs, &loop2, &QEventLoop::quit);
-        loop2.exec();
+        qDebug() << "[InternetTask] 列表页未获取到cookie，尝试首页";
+        // reset settle timer state
+        settleTimer.stop();
+        finalCookies.clear();
+        got = false;
+
+        browser.fetchCookiesEphemeral(homeUrl);
+        QTimer::singleShot(timeoutMs, &loop, &QEventLoop::quit);
+        loop.exec();
     }
 
     // 如果没有cookie则返回false
@@ -199,29 +209,38 @@ bool InternetTask::updateCookieBySource(const std::string& sourceCode, WebView2B
     bool got = false;
     QString finalCookies;
 
-    // 将槽绑定到本地 loop 上作为 receiver，保证 lambda 在当前（调用者）线程执行，避免跨线程直接访问局部变量
-    QObject::connect(browser, &WebView2BrowserWRL::cookieFetched, &loop, [&](const QString& cookies){
-        qDebug() << "[InternetTask] (browser) WebView2 返回 cookie 长度:" << cookies.length();
-        got = true;
-        finalCookies = cookies;
-        if (loop.isRunning()) loop.quit();
-    });
+    // Collect multiple cookieFetched events and prefer the longest result after a short "settle" period.
     QObject::connect(browser, &WebView2BrowserWRL::navigationFailed, &loop, [&](const QString& reason){
         qDebug() << "[InternetTask] (browser) WebView2 导航失败:" << reason;
         if (loop.isRunning()) loop.quit();
     });
 
-    // 请求浏览器在 GUI 线程执行导航
-    QMetaObject::invokeMethod(browser, "fetchCookies", Qt::QueuedConnection, Q_ARG(QString, homeUrl));
+    QTimer settleTimer(&loop);
+    settleTimer.setSingleShot(true);
+    QObject::connect(browser, &WebView2BrowserWRL::cookieFetched, &loop, [&](const QString& cookies){
+        qDebug() << "[InternetTask] (browser) WebView2 返回 cookie 长度:" << cookies.length();
+        if (cookies.length() > finalCookies.length()) finalCookies = cookies;
+        settleTimer.start(800);
+    });
+    QObject::connect(&settleTimer, &QTimer::timeout, &loop, [&](){
+        got = true;
+        if (loop.isRunning()) loop.quit();
+    });
+
+    // 优先使用列表页以获取更完整的 cookie 链
+    QMetaObject::invokeMethod(browser, "fetchCookies", Qt::QueuedConnection, Q_ARG(QString, listUrl));
     QTimer::singleShot(timeoutMs, &loop, &QEventLoop::quit);
     loop.exec();
 
     if (!got) {
-        qDebug() << "[InternetTask] (browser) 首页未获取到cookie，尝试列表页";
-        QEventLoop loop2;
-        QMetaObject::invokeMethod(browser, "fetchCookies", Qt::QueuedConnection, Q_ARG(QString, listUrl));
-        QTimer::singleShot(timeoutMs, &loop2, &QEventLoop::quit);
-        loop2.exec();
+        qDebug() << "[InternetTask] (browser) 列表页未获取到cookie，尝试首页";
+        settleTimer.stop();
+        finalCookies.clear();
+        got = false;
+
+        QMetaObject::invokeMethod(browser, "fetchCookies", Qt::QueuedConnection, Q_ARG(QString, homeUrl));
+        QTimer::singleShot(timeoutMs, &loop, &QEventLoop::quit);
+        loop.exec();
     }
 
     if (!got || finalCookies.isEmpty()) {

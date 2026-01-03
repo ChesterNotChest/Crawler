@@ -46,6 +46,11 @@ public:
 
     // Get the saveAndVectorize flag from config.json. Returns defaultValue if not set.
     static bool getSaveAndVectorize(bool defaultValue = true);
+    // Email configuration accessors
+    static QJsonObject getEmailSenderConfig();
+    static QString getEmailReceiver();
+    // Whether to actually send alerts when triggered (default true)
+    static bool getSendAlert(bool defaultValue = true);
 
 private:
     static QJsonObject s_config;

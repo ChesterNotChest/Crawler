@@ -1,5 +1,17 @@
 {
-    "saveAndVectorize": true,
+    "email": {
+        "receiver": "",
+        "sendAlert": true,
+        "sender": {
+            "from": "",
+            "password": "",
+            "smtp_port": 465,
+            "smtp_server": "",
+            "use_ssl": true,
+            "username": ""
+        }
+    },
+    "saveAndVectorize": false,
     "zhipin": {
         "cookie": "",
         "updateTime": "2026-01-03"

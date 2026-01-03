@@ -143,3 +143,40 @@ bool ConfigManager::getSaveAndVectorize(bool defaultValue) {
     }
     return defaultValue;
 }
+
+QJsonObject ConfigManager::getEmailSenderConfig() {
+    if (!s_loaded) loadConfig();
+    if (s_config.contains("email") && s_config["email"].isObject()) {
+        QJsonObject email = s_config["email"].toObject();
+        if (email.contains("sender") && email["sender"].isObject()) {
+            return email["sender"].toObject();
+        }
+    }
+    return QJsonObject();
+}
+
+QString ConfigManager::getEmailReceiver() {
+    if (!s_loaded) loadConfig();
+    if (s_config.contains("email") && s_config["email"].isObject()) {
+        QJsonObject email = s_config["email"].toObject();
+        if (email.contains("receiver")) return email["receiver"].toString();
+    }
+    return QString();
+}
+
+bool ConfigManager::getSendAlert(bool defaultValue) {
+    if (!s_loaded) loadConfig();
+    if (s_config.contains("email") && s_config["email"].isObject()) {
+        QJsonObject email = s_config["email"].toObject();
+        if (email.contains("sendAlert")) {
+            const auto v = email.value("sendAlert");
+            if (v.isBool()) return v.toBool();
+            if (v.isDouble()) return v.toDouble() != 0.0;
+            if (v.isString()) {
+                QString s = v.toString().toLower();
+                return (s == "1" || s == "true" || s == "yes" || s == "on");
+            }
+        }
+    }
+    return defaultValue;
+}
