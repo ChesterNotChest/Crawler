@@ -254,7 +254,7 @@ HRESULT WebView2BrowserWRL::OnWebResourceRequested(ICoreWebView2* sender, ICoreW
     // 输出更丰富的请求信息，便于调试和扩展
     QString info = QString("[请求捕捉] %1 %2\n  Referer: %3\n  UA: %4\n  Cookie: %5")
         .arg(methodStr, urlStr, refererStr, uaStr, cookieStr);
-    qDebug() << info;
+    // qDebug() << info;
 
     // 仍然通过信号传递url和cookie，兼容旧逻辑
     emit requestIntercepted(urlStr, cookieStr);
