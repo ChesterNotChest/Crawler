@@ -73,6 +73,8 @@ set(PROJECT_SOURCES
         cppGUI/crawlerwindow.cpp
         cppGUI/crawlprogresswindow.h
         cppGUI/crawlprogresswindow.cpp
+        cppGUI/configwindow.h
+        cppGUI/configwindow.cpp
 )
 
 # 网络爬虫源文件

@@ -9,6 +9,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QThread>
+#include <QString>
 #include "tasks/crawler_task.h"
 #include "db/sqlinterface.h"
 
@@ -18,6 +19,9 @@ class CrawlProgressWindow : public QMainWindow {
 public:
     CrawlProgressWindow(const std::vector<std::string>& sources, const std::vector<int>& maxPagesList, QWidget *parent = nullptr);
     ~CrawlProgressWindow();
+
+signals:
+    void crawlFinished(const QString &summary);
 
 private slots:
     void onPauseResumeClicked();
@@ -34,6 +38,8 @@ private:
     QPushButton *pauseResumeButton;
     QPushButton *terminateButton;
     QLabel *statusLabel;
+
+    bool m_emittedFinished;
 
     std::vector<std::string> m_sources;
     std::vector<int> m_maxPagesList;

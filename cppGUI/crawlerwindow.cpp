@@ -14,6 +14,7 @@
 #include <QHeaderView>
 #include <QListWidget>
 #include <QCheckBox>
+#include <QMessageBox>
 #include "tasks/presenter_task.h"
 #include "tasks/crawler_task.h"
 #include "db/sqlinterface.h"
@@ -22,6 +23,9 @@
 #include "crawlprogresswindow.h"
 
 CrawlerWindow::CrawlerWindow(QWidget *parent) : QMainWindow(parent), currentPage(1), pageSize(20), asc(true) {
+    setWindowTitle("职位爬虫");
+    setMinimumSize(960, 640);
+
     fieldMap["jobId"] = "jobId";
     fieldMap["工作名称"] = "jobName";
     fieldMap["招聘类型"] = "recruitTypeName";
@@ -32,10 +36,14 @@ CrawlerWindow::CrawlerWindow(QWidget *parent) : QMainWindow(parent), currentPage
 
     QWidget *central = new QWidget;
     QVBoxLayout *mainLayout = new QVBoxLayout(central);
+    mainLayout->setContentsMargins(28, 24, 28, 24);
+    mainLayout->setSpacing(14);
 
     // top
     QHBoxLayout *topLayout = new QHBoxLayout;
+    topLayout->setSpacing(10);
     searchLineEdit = new QLineEdit;
+    searchLineEdit->setPlaceholderText("输入关键词...");
     searchButton = new QPushButton("搜索");
     refreshButton = new QPushButton("刷新");
     crawlButton = new QPushButton("爬取");
@@ -47,6 +55,7 @@ CrawlerWindow::CrawlerWindow(QWidget *parent) : QMainWindow(parent), currentPage
 
     // filter
     QHBoxLayout *filterLayout = new QHBoxLayout;
+    filterLayout->setSpacing(10);
     salaryFilter = new QPushButton("薪金筛选");
     connect(salaryFilter, &QPushButton::clicked, this, [this]() { showFilterDialog("salary", salaryFilter); });
     filterLayout->addWidget(salaryFilter);
@@ -81,12 +90,14 @@ CrawlerWindow::CrawlerWindow(QWidget *parent) : QMainWindow(parent), currentPage
     QHeaderView *header = table->horizontalHeader();
     // make columns stretch to fill available width
     header->setSectionResizeMode(QHeaderView::Stretch);
+    table->setAlternatingRowColors(true);
     table->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     connect(header, &QHeaderView::sectionClicked, this, &CrawlerWindow::onHeaderClicked);
     mainLayout->addWidget(table);
 
     // page
     QHBoxLayout *pageLayout = new QHBoxLayout;
+    pageLayout->setSpacing(10);
     prevButton = new QPushButton("上一页");
     pageSpin = new QSpinBox;
     pageSpin->setMinimum(1);
@@ -106,6 +117,87 @@ CrawlerWindow::CrawlerWindow(QWidget *parent) : QMainWindow(parent), currentPage
     mainLayout->addLayout(pageLayout);
 
     setCentralWidget(central);
+
+    setStyleSheet(R"(
+        CrawlerWindow, QMainWindow {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                stop:0 #f8f9fa, stop:1 #e9ecef);
+        }
+        QLineEdit {
+            border: 1px solid #dfe6ed;
+            border-radius: 10px;
+            padding: 8px 12px;
+            background: #ffffff;
+            color: #000000;
+        }
+        QLineEdit:focus {
+            border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52,152,219,0.15);
+        }
+        QPushButton {
+            background-color: #3498db;
+            color: #ffffff;
+            border: none;
+            border-radius: 10px;
+            padding: 8px 14px;
+            font-weight: bold;
+            min-height: 32px;
+        }
+        QPushButton:hover {
+            background-color: #2980b9;
+        }
+        QPushButton:pressed {
+            background-color: #2471a3;
+        }
+        QPushButton#danger {
+            background-color: #e74c3c;
+        }
+        QPushButton#danger:hover {
+            background-color: #c0392b;
+        }
+        QPushButton#viewCellButton {
+            background: transparent;
+            color: #3498db;
+            border: none;
+            padding: 0 6px;
+            min-height: 0;
+            min-width: 0;
+        }
+        QPushButton#viewCellButton:hover {
+            text-decoration: underline;
+        }
+        QTableWidget {
+            background: #ffffff;
+            border: 1px solid #ecf0f1;
+            border-radius: 12px;
+            gridline-color: #ecf0f1;
+            selection-background-color: #e8f3fd;
+        }
+        QTableView::item:alternate {
+            background: #f9fbff;
+        }
+        QHeaderView::section {
+            background: #f4f6f8;
+            padding: 10px 6px;
+            border: none;
+            border-right: 1px solid #e1e6eb;
+            font-weight: bold;
+            color: #000000;
+        }
+        QTableCornerButton::section {
+            background: #f4f6f8;
+            border: none;
+            border-right: 1px solid #e1e6eb;
+            color: #000000;
+        }
+        QTableWidget::item {
+            padding: 6px;
+            color: #000000;
+        }
+        QLabel {
+            color: #000000;
+        }
+    )");
 
     // connect
     connect(searchButton, &QPushButton::clicked, this, [this]() { onSearchClicked(true); });
@@ -130,12 +222,20 @@ CrawlerWindow::CrawlerWindow(QWidget *parent) : QMainWindow(parent), currentPage
 void CrawlerWindow::onCrawlButtonClicked() {
     QDialog dialog(this);
     dialog.setWindowTitle("爬取设置");
+    dialog.setStyleSheet("QDialog { background: #ffffff; } QLabel { color: #050404ff; }");
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
     QLabel *labelPages = new QLabel("为每个来源设置爬取页数（未勾选的来源将被忽略）:");
+    labelPages->setStyleSheet("color: #000000;");
     layout->addWidget(labelPages);
 
     // list of available sources with per-source spinboxes
     QListWidget *listSources = new QListWidget();
+    listSources->setStyleSheet(
+        "QListWidget { background: #ffffff; color: #000000; border: 1px solid #dfe6ed; } "
+        "QCheckBox { color: #000000; background: transparent; } "
+        "QCheckBox::indicator { width: 18px; height: 18px; border: 1px solid #c4c9d0; border-radius: 4px; background: #ffffff; } "
+        "QCheckBox::indicator:checked { background-color: #3498db; border-color: #2980b9; }"
+    );
     QStringList sources = {"liepin", "nowcode", "zhipin", "chinahr", "wuyi"};
     struct ItemWidgets { QCheckBox *check; QSpinBox *spin; };
     std::vector<ItemWidgets> widgets;
@@ -172,6 +272,19 @@ void CrawlerWindow::onCrawlButtonClicked() {
         }
         if (!selectedSources.empty()) {
             CrawlProgressWindow *progressWindow = new CrawlProgressWindow(selectedSources, pagesList, this);
+            progressWindow->setAttribute(Qt::WA_DeleteOnClose);
+            connect(progressWindow, &CrawlProgressWindow::crawlFinished, this, [this](const QString &summary) {
+                onSearchClicked(true);
+                QMessageBox msg(QMessageBox::Information, "爬取完成", summary, QMessageBox::Ok, this);
+                msg.setStyleSheet(
+                    "QMessageBox { background: #ffffff; } "
+                    "QLabel { color: #000000; } "
+                    "QPushButton { background-color: #3498db; color: #ffffff; border: none; border-radius: 10px; padding: 6px 14px; min-width: 72px; } "
+                    "QPushButton:hover { background-color: #2980b9; } "
+                    "QPushButton:pressed { background-color: #2471a3; }"
+                );
+                msg.exec();
+            });
             progressWindow->show();
         }
     });
@@ -235,6 +348,10 @@ void CrawlerWindow::fillTable(const QVector<SQLNS::JobInfoPrint> &jobs) {
         QString tags = job.tagNames.mid(0, 3).join(", ");
         table->setItem(i, 6, new QTableWidgetItem(tags));
         QPushButton *viewButton = new QPushButton("查看");
+        viewButton->setObjectName("viewCellButton");
+        viewButton->setMinimumWidth(56);
+        viewButton->setMaximumWidth(80);
+        viewButton->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
         connect(viewButton, &QPushButton::clicked, this, [this, job]() { showJobDetail(job); });
         table->setCellWidget(i, 7, viewButton);
     }
@@ -329,6 +446,7 @@ void CrawlerWindow::showFilterDialog(const QString &field, QPushButton *button) 
 void CrawlerWindow::showJobDetail(const SQLNS::JobInfoPrint &job) {
     QDialog dialog(this);
     dialog.setWindowTitle("职位详情");
+    dialog.setStyleSheet("QDialog { background: #ffffff; } QLabel { color: #000000; }");
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
     layout->addWidget(new QLabel(QString("职位ID: %1").arg(job.jobId)));
     layout->addWidget(new QLabel(QString("职位名称: %1").arg(job.jobName)));
