@@ -64,9 +64,9 @@ public:
      * @param timeoutMs 等待cookie获取的超时时间（ms）
      * @return 成功返回true
      */
-    bool updateCookieBySource(const std::string& sourceCode, int timeoutMs = 3500);
+    bool updateCookieBySource(const std::string& sourceCode, int timeoutMs = 15000);
     // Overload: use an existing WebView2 instance (created in GUI thread) to fetch cookies.
-    bool updateCookieBySource(const std::string& sourceCode, WebView2BrowserWRL* browser, int timeoutMs = 3500);
+    bool updateCookieBySource(const std::string& sourceCode, WebView2BrowserWRL* browser, int timeoutMs = 15000);
     
     /**
      * @brief 爬取所有启用的数据源

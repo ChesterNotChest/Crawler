@@ -17,6 +17,8 @@ public:
 
     // 启动导航并异步获取cookie
     Q_INVOKABLE void fetchCookies(const QString& url);
+    // Create a WebView2 environment with an ephemeral user-data folder to avoid reusing existing profile
+    Q_INVOKABLE void fetchCookiesEphemeral(const QString& url);
 
     // 启用/禁用请求捕捉
     Q_INVOKABLE void enableRequestCapture(bool enable);

@@ -164,6 +164,9 @@ int CrawlerTask::crawlAll(const std::vector<std::string>& sources, const std::ve
                 }
                 if (ok) {
                     qDebug() << "[CrawlerTask] cookie 更新成功，重试第" << page << "页...";
+                        qDebug() << "[CrawlerTask] cookie 更新成功，稍作等待后重试第" << page << "页...";
+                        // give the system and server a moment to accept the new cookie/session
+                        QThread::msleep(2000);
                     if ((src == "wuyi" || src == "liepin") && m_sessionBrowser) {
                         std::tie(jobs, mapping) = m_internetTask.fetchBySource(src, page, pageSize, m_sessionBrowser, currentRecruitType, currentCity);
                     } else {

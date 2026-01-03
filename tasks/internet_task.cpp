@@ -108,14 +108,16 @@ bool InternetTask::updateCookieBySource(const std::string& sourceCode, int timeo
     });
 
     // 先访问首页，再访问职位列表页以触发完整cookie链
-    browser.fetchCookies(homeUrl);
+    // Use ephemeral user-data-folder to avoid reusing persistent profile
+    browser.fetchCookiesEphemeral(homeUrl);
     QTimer::singleShot(timeoutMs, &loop, &QEventLoop::quit);
     loop.exec();
 
     // 如果首页未取得cookie，再试列表页
     if (!got) {
         qDebug() << "[InternetTask] 首页未获取到cookie，尝试列表页";
-        browser.fetchCookies(listUrl);
+        browser.fetchCookiesEphemeral(listUrl);
+        
         QEventLoop loop2;
         QTimer::singleShot(timeoutMs, &loop2, &QEventLoop::quit);
         loop2.exec();

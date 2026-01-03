@@ -767,7 +767,7 @@ bool AITransferTask::sendSingleJobBlocking(const QJsonObject &jobObj, const QStr
 
     QJsonDocument doc(payloadObj);
     QByteArray payload = doc.toJson(QJsonDocument::Compact);
-    qInfo() << "sendSingleJobBlocking: sending payload:" << QString::fromUtf8(payload);
+    qInfo() << "sendSingleJobBlocking" << "payload size:" << payload.size();
 
     QNetworkReply *reply = manager.post(request, payload);
 

@@ -37,10 +37,36 @@ WebView2BrowserWRL::WebView2BrowserWRL(QWidget* parent)
 WebView2BrowserWRL::~WebView2BrowserWRL() {}
 
 void WebView2BrowserWRL::fetchCookies(const QString& url) {
-    m_pendingUrl = url;
+    // add cache-busting param to force a fresh network request
+    QString u = url;
+    QString cb = QStringLiteral("_cb=") + QString::number(QDateTime::currentMSecsSinceEpoch());
+    if (u.contains('?')) u += QLatin1String("&") + cb; else u += QLatin1String("?") + cb;
+    m_pendingUrl = u;
     // 创建环境
     CreateCoreWebView2EnvironmentWithOptions(
         nullptr, nullptr, nullptr,
+        Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
+            [this](HRESULT result, ICoreWebView2Environment* env) -> HRESULT {
+                return OnEnvironmentCompleted(result, env);
+            }).Get());
+}
+
+void WebView2BrowserWRL::fetchCookiesEphemeral(const QString& url) {
+    // add cache-busting param to force a fresh network request
+    QString u = url;
+    QString cb = QStringLiteral("_cb=") + QString::number(QDateTime::currentMSecsSinceEpoch());
+    if (u.contains('?')) u += QLatin1String("&") + cb; else u += QLatin1String("?") + cb;
+    m_pendingUrl = u;
+    // create a unique temporary user-data-folder so WebView2 does not reuse existing profile
+    QString tmp = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    QString folder = tmp + QDir::separator() + QStringLiteral("CrawlerWebView2_") + QString::number(QDateTime::currentMSecsSinceEpoch());
+    QDir d;
+    d.mkpath(folder);
+    qDebug() << "[WebView2BrowserWRL] ephemeral user-data-folder:" << folder;
+    // pass userDataFolder as wide string
+    std::wstring wfolder = folder.toStdWString();
+    CreateCoreWebView2EnvironmentWithOptions(
+        nullptr, wfolder.c_str(), nullptr,
         Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
             [this](HRESULT result, ICoreWebView2Environment* env) -> HRESULT {
                 return OnEnvironmentCompleted(result, env);
