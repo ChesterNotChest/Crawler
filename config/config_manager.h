@@ -52,6 +52,11 @@ public:
     // Whether to actually send alerts when triggered (default true)
     static bool getSendAlert(bool defaultValue = true);
 
+    // Mutators for runtime updates from UI
+    static void setSaveAndVectorize(bool enabled);
+    static void setSendAlert(bool enabled);
+    static void setEmailReceiver(const QString &receiver);
+
 private:
     static QJsonObject s_config;
     static bool s_loaded;

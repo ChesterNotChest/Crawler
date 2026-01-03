@@ -180,3 +180,34 @@ bool ConfigManager::getSendAlert(bool defaultValue) {
     }
     return defaultValue;
 }
+
+void ConfigManager::setSaveAndVectorize(bool enabled) {
+    if (!s_loaded && !loadConfig()) {
+        s_config = QJsonObject();
+        s_configPath = getConfigFilePath();
+        s_loaded = true;
+    }
+    s_config["saveAndVectorize"] = enabled;
+}
+
+void ConfigManager::setSendAlert(bool enabled) {
+    if (!s_loaded && !loadConfig()) {
+        s_config = QJsonObject();
+        s_configPath = getConfigFilePath();
+        s_loaded = true;
+    }
+    QJsonObject email = s_config.value("email").toObject();
+    email["sendAlert"] = enabled;
+    s_config["email"] = email;
+}
+
+void ConfigManager::setEmailReceiver(const QString &receiver) {
+    if (!s_loaded && !loadConfig()) {
+        s_config = QJsonObject();
+        s_configPath = getConfigFilePath();
+        s_loaded = true;
+    }
+    QJsonObject email = s_config.value("email").toObject();
+    email["receiver"] = receiver;
+    s_config["email"] = email;
+}

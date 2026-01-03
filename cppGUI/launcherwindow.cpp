@@ -21,6 +21,7 @@
 #include "chatwindow.h"
 #include "tasks/ai_transfer_task.h"
 #include "crawlerwindow.h"
+#include "configwindow.h"
 
 LauncherWindow::LauncherWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -446,8 +447,16 @@ void LauncherWindow::onCrawlerButtonClicked()
 
 void LauncherWindow::onSettingsButtonClicked()
 {
-    // TODO: 实现设置窗口
-    QMessageBox::information(this, "功能开发中", "系统设置功能正在开发中，敬请期待！");
+    ConfigWindow *configWin = new ConfigWindow(this);
+    connect(configWin, &ConfigWindow::returnToLauncher, this, [this, configWin]() {
+        this->showNormal();
+        this->activateWindow();
+        this->raise();
+        configWin->deleteLater();
+    });
+
+    configWin->show();
+    hide();
 }
 
 void LauncherWindow::onAboutButtonClicked()
