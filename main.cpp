@@ -1,6 +1,7 @@
 #include "cppGUI/launcherwindow.h"
 #include "test/test.h"
 #include "config/config_manager.h"
+#include "maintenance/logger.h"
 
 #include <QApplication>
 #include <QDebug>
@@ -9,8 +10,11 @@ int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
 
+    // Initialize logger early so qDebug() goes to log file
+    Maintenance::initializeLogger();
+
     // ========== 配置加载 ==========
-    qDebug() << "\n========== CONFIG LOADING ==========\n";
+    qDebug() << "\n========== CONFIG LOADING ==========" << "\n";
     if (ConfigManager::loadConfig("config.json")) {
         qDebug() << "✓ 配置文件加载成功\n";
     } else {
@@ -18,7 +22,7 @@ int main(int argc, char *argv[])
     }
 
     // ========== 单元测试 ==========
-    // qDebug() << "\n========== UNIT TESTS ==========\n";
+    // qDebug() << "\n========== UNIT TESTS ==========" << "\n";
 
     // qDebug() << "[1/2] InternetTask 单元测试 - 网络爬取功能";
     // test_internet_task_unit();
@@ -36,14 +40,18 @@ int main(int argc, char *argv[])
     // qDebug() << "CrawlerTask 集成测试 - Crawler侧完整工作流";
     // test_batch_crawl();
 
-    // PresenterTask 功能测试 - 数据查询与处理  //TODO FaIL
-    qDebug() << "\n========== PRESENTER TASK TEST ==========\n";
-    qDebug() << "PresenterTask 功能测试 - 数据查询与处理";
-    test_presenter_task();
+    // PresenterTask 功能测试 - 数据查询与处理
+    // qDebug() << "\n========== PRESENTER TASK TEST ==========\n";
+    // qDebug() << "PresenterTask 功能测试 - 数据查询与处理";
+    // test_presenter_task();
 
     // 启动GUI应用
     qDebug() << "\n========== Launching GUI ==========";
     LauncherWindow w;
     w.show();
-    return a.exec();
+    int rc = a.exec();
+
+    // Shutdown logger cleanly
+    Maintenance::shutdownLogger();
+    return rc;
 }

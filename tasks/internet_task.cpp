@@ -227,7 +227,7 @@ bool InternetTask::updateCookieBySource(const std::string& sourceCode, WebView2B
         return false;
     }
 
-    // 写入 config.json（与原实现一致）
+    // 写入 config.json
     QString configPath = ConfigManager::getConfigFilePath();
     qDebug() << "[InternetTask] (browser) Writing config.json to:" << configPath;
 

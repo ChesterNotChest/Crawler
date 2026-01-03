@@ -159,7 +159,16 @@ std::pair<std::vector<JobInfo>, MappingData> parseZhipinResponse(const json& jso
                         job.salary_max = v;
                     }
 
-                    // 若不含 K，则将招聘类型自动设为实习（2）
+                    // 如果字符串中没有 'K'，但解析后的数值很大（例如 >1000），
+                    // 则仍按带 K 的逻辑处理（避免把 30000 误判为日薪/无单位）。
+                    if (!hasK) {
+                        double checkVal = (job.salary_max > 0.0) ? job.salary_max : job.salary_min;
+                        if (checkVal > 1000.0) {
+                            hasK = true;
+                        }
+                    }
+
+                    // 若最终判定不含 K，则将招聘类型自动设为实习（2）
                     if (!hasK) {
                         job.type_id = 2;
                     }

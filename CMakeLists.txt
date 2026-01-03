@@ -50,6 +50,8 @@ set(PROJECT_SOURCES
         db/sqlinterface.cpp
         tasks/sql_task.h
         tasks/sql_task.cpp
+        maintenance/logger.h
+        maintenance/logger.cpp
         tasks/internet_task.h
         tasks/internet_task.cpp
         tasks/crawler_task.h

@@ -211,7 +211,10 @@ bool SQLInterface::createAllTables() {
 				  "VALUES(:name, :code, :url, :enabled, datetime('now'), datetime('now'))");
 		const QVector<QPair<QString, QPair<QString, QString>>> sources{
 			{"牛客网", {"nowcode", "https://www.nowcoder.com"}},
-			{"BOSS直聘", {"zhipin", "https://www.zhipin.com"}}
+		{"BOSS直聘", {"zhipin", "https://www.zhipin.com"}},
+		{"猎聘", {"liepin", "https://www.liepin.com"}},
+		{"前程无忧", {"wuyi", "https://www.51job.com"}},
+		{"中华英才网", {"chinahr", "https://www.chinahr.com"}}
 		};
 		for (const auto &s : sources) {
 			q.bindValue(":name", s.first);
