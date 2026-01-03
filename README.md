@@ -1,6 +1,6 @@
 # Crawler 项目
 
-一个基于Qt 6.9的高效网页爬虫工具，支持并行任务处理、数据库存储和SQL查询。
+一个基于Qt 6.9的低标准网页爬虫工具，支持并行任务处理、数据库存储和SQL查询。
 
 ## 📋 项目特性
 
@@ -8,33 +8,33 @@
 - **HTTP 请求** - 基于libcurl库实现网络爬取
 - **JSON 处理** - 使用nlohmann-json进行数据解析
 - **数据库支持** - SQLite数据库集成，支持任务和结果存储
-- **并行处理** - 多任务并行爬取，提高效率
-- **跨平台** - 支持Windows、Linux、macOS等平台
-- **配置管理** - config.json统一管理敏感数据（Cookie等）
+- **配置管理** - config.json统一管理
 
 ## 🔐 Cookie管理方案
 
-**推荐方式：使用config.json配置文件**
-
-Qt WebView在Windows桌面平台依赖Qt WebEngine，而WebEngine不支持MinGW（仅MSVC），因此采用配置文件方案。
-
-### 使用步骤：
-
-1. **从浏览器获取Cookie**
-   - 访问BOSS直聘网站并登录
-   - 打开开发者工具（F12）→ Application/存储 → Cookies
-   - 复制完整Cookie字符串
-
-2. **编辑config.json文件**
+**config.json文件**
 ```json
 {
+  "email": {
+    "receiver": "you@example.com",
+    "sendAlert": true,
+    "sender": {
+      "from": "you@example.com",
+      "password": "<SMTP_PASSWORD>",
+      "smtp_port": 465,
+      "smtp_server": "smtp.example.com",
+      "use_ssl": true,
+      "username": "your_smtp_user"
+    }
+  },
+  "saveAndVectorize": false,
   "zhipin": {
-    "cookie": "你的完整Cookie字符串（包含__zp_stoken__等）",
-    "city": "101010100",
-    "updateTime": "2025-12-19"
+    "cookie": "<YOUR_ZHIPIN_COOKIE>",
+    "updateTime": "2026-01-03"
   }
 }
 ```
+
 
 3. **程序自动使用**
    - 程序启动时自动加载config.json
@@ -42,37 +42,36 @@ Qt WebView在Windows桌面平台依赖Qt WebEngine，而WebEngine不支持MinGW�
    - 无需修改代码
 
 ## 🗂️ 项目结构
-
-```
+```txt
 Crawler/
 ├── main.cpp                 # 程序入口
-├── mainwindow.cpp/.h/.ui    # 主窗口UI
-├── CMakeLists.txt           # CMake构建配置
-├── network/                 # 网络爬虫核心模块
-│   ├── job_crawler.h        # 爬虫数据结构定义
-│   ├── job_crawler_main.cpp # 爬虫主入口函数
-│   ├── job_crawler_network.cpp
-│   ├── job_crawler_parser.cpp
-│   ├── job_crawler_printer.cpp
-│   └── job_crawler_utils.cpp
-├── db/                      # 数据库模块
-│   ├── sqlinterface.cpp/.h  # SQL接口 (SQLNS命名空间)
-├── tasks/                   # 任务管理层
-│   ├── sql_task.cpp/.h      # SQL存储任务 (Network→SQL桥梁)
-│   ├── internet_task.cpp/.h # 网络爬取任务 (封装爬虫调用)
-│   └── crawler_task.cpp/.h  # 总任务协调器 (InternetTask+SqlTask)
-├── constants/               # 数据结构定义
-│   ├── network_types.h      # 网络模块数据结构
-│   └── db_types.h           # 数据库模块数据结构
-├── test/                    # 测试模块
-│   ├── test_job_crawler.cpp
-│   ├── test_sql.cpp
-│   ├── test_integration.cpp
-│   ├── test_crawler_task.cpp
-│   └── test.h
-└── include/                 # 第三方库 (需要自行补充)
-    ├── curl-8.17.0_5-win64-mingw/
-    └── nlohmann-json-develop/
+├── mainwindow.cpp/.h/.ui    # 主窗口 UI
+├── CMakeLists.txt           # CMake 构建配置
+├── ai/                      # Python AI 协调与 RAG 相关脚本（brain.py 等）
+├── cppGUI/                  # Qt C++ GUI 子模块（聊天/配置/爬虫窗口）
+├── gui/                     # Python GUI 辅助脚本（PyQt/PySide，若存在）
+├── network/                 # 网络爬虫核心模块（job_crawler_*）
+├── db/                      # 数据库模块（sqlinterface）
+├── tasks/                   # 任务管理层（presenter_task、crawler_task、ai_transfer_task 等）
+├── constants/               # 数据结构定义（network_types.h / db_types.h）
+├── documentations/          # 项目文档（设计、算法、API 说明）
+├── web/                     # 内置/实验性 Web 服务或示例（若存在）
+├── include/                 # 第三方库头/二进制（请确保以下内容存在或按需安装）
+│   ├── curl-8.17.0_5-win64-mingw/   # libcurl 二进制/头
+│   ├── nlohmann-json-develop/      # nlohmann::json header-only
+│   ├── WebView2SDK/                # Windows WebView2 SDK（可选，若使用 WebView2）
+│   ├── wil/                        # Windows Implementation Libraries（若需）
+│   └── openssl/ or libssl/         # 如果用到 SSL 的话（系统/包管理器 提供）
+├── build/                   # 本地构建输出（Qt Creator / CMake 生成）
+├── data/                    # 运行时数据与向量索引（conversation_history, vector_index 等）
+├── db/                      # 数据库相关文件
+├── logs/                    # 运行日志
+├── maintenance/             # 维护脚本（邮件告警等）
+├── presenter/               # Presenter 相关代码（若存在，与前端展示有关）
+├── network/                 # 重复条目已合并到上方 network/
+├── tasks/                   # 重复条目已合并到上方 tasks/
+├── test/                    # 测试程序
+└── README.md / LICENSE / requirements.txt / config.json
 ```
 
 ## 🏗️ 架构设计
@@ -80,21 +79,28 @@ Crawler/
 项目采用分层架构，通过任务层实现模块间的解耦：
 
 ```
-┌─────────────────────────────────────────────┐
-│          CrawlerTask (总协调器)             │
-│  提供: crawlAndStore()自动遍历所有类型      │
-└──────────────┬─────────────┬────────────────┘
-               │             │
-       ┌───────▼─────┐  ┌────▼────────┐
-       │InternetTask │  │  SqlTask    │
-       │  (网络层)   │  │  (存储层)   │
-       └──────┬──────┘  └────┬────────┘
-              │              │
-       ┌──────▼──────┐  ┌────▼────────┐
-       │job_crawler  │  │SQLInterface │
-       │ (爬虫核心)  │  │ (数据库)    │
-       └─────────────┘  └─────────────┘
+┌───────────────────────────────────────────────────────────┐
+│                     PresenterTask (前端展示服务)          │
+│  提供: 前端展示与调度接口，触发抓取与AI传输任务            │
+└──────────────┬──────────────────────┬────────────────────┘
+               │                      │
+       ┌───────▼──────┐       ┌───────▼────────┐
+       │  CrawlerTask  │◄──────┤  PresenterTask  │
+       │  (总协调器)   │  调度 │   (前端)         │
+       │ 提供: crawlAndStore()│    │                │
+       └──────┬──────┘        └──────┬────────┘
+              │                      │
+    ┌─────────▼────────┐      ┌──────▼──────┐       ┌──────────────────┐
+    │  InternetTask    │      │  SqlTask    │       │  ai_transfer_task│
+    │   (网络层)       │       │  (存储层)   │──────→│ (受前端/爬虫调度) │
+    └─────────┬────────┘      └─────┬───────┘       └────────┬─────────┘
+              │                     │                        │ 
+    ┌─────────▼────────┐   ┌────────▼─────────┐         ─────▼─────
+    │  job_crawler     │   │   SQLInterface   │         │    AI    │
+    │  (爬虫核心)      │    │   (数据库/存储)  │         │    服务  │
+    └──────────────────┘   └──────────────────┘         └──────────┘
 ```
+
 
 ## 数据来源与SQL对齐
 ```
@@ -138,7 +144,7 @@ PK: 薪资档次ID: 自设计ID
 | libcurl | 8.17.0 | HTTP请求 |
 | nlohmann-json | - | JSON解析 |
 | SQLite | - | 数据库 |
-| MinGW | 64-bit | C++编译器 |
+| MSVC | 2022 | C++编译器 |
 
 ## 📦 依赖库
 
@@ -157,27 +163,40 @@ PK: 薪资档次ID: 自设计ID
 ## 📚 模块说明
 
 ### 常量定义模块 (constants/)
-- **network_types.h** - 网络模块数据结构（`JobInfo`、`MappingData`、`DebugLevel`等）
-- **db_types.h** - 数据库模块数据结构（`SQLNS::JobInfo`、`SQLNS::SalaryRange`等）
+- **network_types.h** - 网络模块数据结构（`JobInfo`、`MappingData`、`DebugLevel`等）。
+- **db_types.h** - 数据库模块数据结构（`SQLNS::JobInfo`、`SQLNS::SalaryRange`等）。
 
 ### 网络爬虫模块 (network/)
-- **job_crawler.h** - 爬虫接口函数声明（引用`constants/network_types.h`）
-- **job_crawler_main.cpp** - 爬虫主入口（聚合网络、解析与打印）
-- **job_crawler_network.cpp** - 网络请求实现（libcurl，启用SSL配置与30s超时，附带User-Agent）
-- **job_crawler_parser.cpp** - 响应数据解析（支持多种JSON格式、原始JSON调试打印、安全类型转换）
-- **job_crawler_printer.cpp** - 数据输出（统一使用 `qDebug()`，英文标签）
-- **job_crawler_utils.cpp** - 工具函数（`print_debug_info`、时间戳转换、HTML清理、CURL写回调）
+- **job_crawler.h** - 爬虫公共接口与数据结构声明（引用 `constants/network_types.h`）。
+- **job_crawler_main.cpp** - 爬虫主入口，聚合网络层与解析器并驱动抓取流程。
+- **job_crawler_network.cpp** - 低层 HTTP 实现（libcurl）、超时、重试与请求头管理。
+- **job_crawler_parser.cpp** - 响应解析与适配器：容错、字段映射、不同站点格式兼容。
+- **job_crawler_printer.cpp** - 统一输出/调试打印（`qDebug()`）。
+- **job_crawler_utils.cpp** - 公共工具（时间/HTML 清理、CURL 回调、格式化）。
 
 ### 数据库模块 (db/)
-- **sqlinterface.h/cpp** - SQL执行接口（SQLNS命名空间）
-- 支持SQLite数据库操作，采用INSERT OR IGNORE模式避免重复
-- 提供岗位、公司、城市、标签等表的增删查改
-- 实现64位jobId支持，避免整型溢出
+- **sqlinterface.h / sqlinterface.cpp** - SQL 接口（`SQLNS` 命名空间）：负责表结构、插入/查询、去重与事务控制。
+- 注意事项：当前使用 SQLite，采用每线程 DB 连接策略；提供幂等写入（INSERT OR IGNORE）与批量插入路径。
 
 ### 任务模块 (tasks/)
-- **crawler_task.h/cpp** - 总任务协调器，自动遍历所有招聘类型（校招/实习/社招）
-- **internet_task.h/cpp** - 网络爬取任务，封装HTTP请求与JSON解析
-- **sql_task.h/cpp** - SQL存储任务，负责数据类型转换、薪资档次计算（支持实习元/天与全职K/月）
+- **presenter_task.h / presenter_task.cpp** - 前端展示与调度服务：对外暴露 UI/前端的任务入口，触发 `crawler_task`、`ai_transfer_task`，并推送任务状态到 UI（前端/展示专用）。
+- **crawler_task.h / crawler_task.cpp** - 爬虫总协调器：执行 `crawlAndStore()`，协调 `internet_task` 与 `sql_task`，处理抓取流程与结果汇总。
+- **internet_task.h / internet_task.cpp** - 网络爬取任务：封装对单站点或任务的抓取实现，负责并发、限速、重试与反爬退避策略。
+- **sql_task.h / sql_task.cpp** - 存储任务：负责数据映射、薪资档次计算、标签/城市自增映射与事务化写入数据库。
+- **ai_transfer_task.h / ai_transfer_task.cpp** - AI 数据传输与 RAG 管道：由前端或 `crawler_task` 调度，负责文档抽取、embedding、向量存储更新以及调用 Python LLM 服务进行后处理或问答准备。
+
+### 前端 / GUI 模块 (cppGUI/ 与 gui/)
+- `mainwindow`, `crawlerwindow`, `launcherwindow` 等：UI 控件、筛选与任务入口。
+- `presenter`（前端展现层）负责展示逻辑与任务调度入口（与 `presenter_task` 对应）。
+
+### AI 模块 (ai/)
+- **brain.py** - RAG 与 LLM 协调：构建检索提示、调用 embedding、合并检索结果并向 LLM 发出生成请求，支持知识库更新与检索管线。
+- **config/** 与 **settings.py** - 本地 LLM（如 Ollama）与 embedding 服务配置。
+
+### 其他模块
+- **include/** - 第三方头/二进制（curl、nlohmann-json 等）。
+- **web/** - 内置或实验性 Web 服务（若存在）。
+- **test/** - 单元与集成测试用例。
 
 ## 🧪 测试
 
@@ -203,104 +222,38 @@ MIT License
 
 如有问题，请提交 Issue 或联系项目维护者。
 
-## 更新日志
-
-2025年12月18日
-* Chester: 创建 `constants/` 文件夹统一数据结构定义；删除 `SalarySlab` 表，薪资档次由代码逻辑定义。
-* Chester: 实习薪资独立计算（元/天）；`CrawlerTask` 自动遍历所有招聘类型。
-
-2025年12月17日
-* Chester: 新增HTML标签清理；`requirements` 字段扩容至5000字符。
-* Chester: 支持新JSON格式（`jobTitle`/`city`/`extraInfo`/顶层公司字段）。
-
-2025年12月16日
-* Chester: 日志统一为 `qDebug()` 英文标签；清理过时文件，明确模块边界。
-* Chester: 规范数据映射：城市按名称自增，公司从 `identity[]` 获取，标签取 `title` 去重；修复时间戳溢出。
-
-2025年12月14日
-* 程序员A: 实现网络通讯部分编写与单元测试。
-* Chester: 完成数据库单元测试与项目整合。
-
-2025年12月13日
-* Chester: 完成数据库部分初步编写。
-* 程序员A: 调整请求头；引入随机时间戳；实现JSON自动解析与映射。
-
-
-
-
-## 任务指南 FaIL
-1. 第一步
-queryAllJobs()
-
-=====  QVector 等价于 高级数组
--Job1 {}
--Job2 {}
--Job3 {}
--Job4 {}
-....
-=====
-
-
-2. 第二步
-=====  QVector 等价于 高级数组
--Job1 {}
--Job2 {}
--Job3 {}
--Job4 {}
-....
-===== 初始
-
-↓
-
-==== QVector 
-       ====== QVector (包含20条)
-       -Job1 {}
-       -Job2 {}
-       -Job3 {}
-       -Job4 {}
-       ....
-       =====
-       ====== QVector (包含20条)
-       -Job21 {}
-       -Job22 {}
-       -Job23 {}
-       -Job24 {}
-       ....
-       =====
-==== 分页后
-
-3. 第三步
-打印上面的内容
-
 ## 源代码运行指南
 
 一·qt准备
 1·首先安装qt6.9.2
 2·安装cmake3.30.5
-3·安装mingw64
-4·安装Desktop_Qt_6_9_2_MSVC2022_64bit-Debug
-5·vs2022安装器的Desktop开发工具中勾选MSVC2022 64位
-6·将mingw64添加到环境变量
-7·安装qt creator
+3·安装Desktop_Qt_6_9_2_MSVC2022_64bit-Debug
+4·vs2022安装器的Desktop开发工具中勾选MSVC2022 64位
 
 
-二·本地IDE
+二·python准备
 1·搭配python3.12及以上版本（最好保持一个版本3.12）
-2·搭配好IDE的python环境，该python用于大模型而非爬虫（具体可询问AI）
+2·搭配好IDE的python环境，该python用于大模型而非爬虫
 3·安装python的第三方库，安装方法如下：
        找到requirements.txt文件
        在该文件所在目录打开命令行
-       输入pip install -r (requirements.txt的文件地址) -i https://pypi.tuna.tsinghua.edu.cn/simple/
+```bash
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple/
+```
 
 三·ollama准备（用于AI）
 1·首先安装ollama
 2·打开ollama
-3·输入ollama pull llama3.1:8b
-4·下载千问0.6B模型
-       找到ollama模型目录（一般在C:\Users\用户名\.ollama\models）
-       在该目录打开命令行
-       输入ollama pull qwen2.5:0.6b
-5·每次启动项目记得打开cmd，输入指令ollama serve并挂在后台
+3·输入ollama pull qwen3:0.6b
+4·下载qwen3:0.6b模型
+```bash
+ollama pull qwen3:0.6b
+```
+5·每次启动项目记得打开cmd，输入指令
+```bash
+ollama serve
+```
+并挂在后台
 
 做完以上准备后，就可以自由运行项目，自由修改了，c++端由qt运行，python由本地IDE运行
 实际上，若本地IDE和qt打开的项目是同一个文件地址的话，它们修改和更新是同步进行的

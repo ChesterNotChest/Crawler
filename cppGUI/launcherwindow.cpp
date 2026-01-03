@@ -462,13 +462,24 @@ void LauncherWindow::onSettingsButtonClicked()
 void LauncherWindow::onAboutButtonClicked()
 {
     QMessageBox msg(this);
-    msg.setWindowTitle("关于AI助手");
-    msg.setText(
-        "AI助手 v1.1.13\n\n"
-        "智能就业助手，助您找到理想工作\n\n"
-        "开发团队：AI开发团队\n"
+    msg.setWindowTitle("关于爬虫助手");
+    msg.setText(QString(
+        "爬虫助手 %1\n\n"
         "技术支持：Qt + Python + AI\n"
-        "© 2025 AI开发团队");
+        "项目主页：%2\n\n"
+        "本地后端：%3\n\n"
+        "说明：本应用用于从各大招聘网站爬取职位信息、构建本地向量化知识库，并提供基于 AI 的检索与对话功能。使用时请遵守目标网站的服务条款与隐私政策。\n\n"
+        "技术信息：\n"
+        " Qt 版本：Qt6\n"
+        " 编译工具链：MSVC\n"
+        " C++ 标准：C++17/C++20n"
+        " 网络：libcurl / QNetworkAccessManager\n"
+        " 数据库：SQLite\n"
+        " 浏览器嵌入：WebView2\n"
+        " 向量检索：本地 VectorStore\n"
+        " LLM：Ollama（本地服务）或远端模型接入\n\n"
+        "反馈：如遇问题或建议，请在项目主页提交 Issue。"
+    ).arg(appVersion).arg(updateUrl).arg(pythonServerUrl));
     msg.setIcon(QMessageBox::Information);
     msg.setStandardButtons(QMessageBox::Ok);
 
