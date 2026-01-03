@@ -133,7 +133,7 @@ int SqlTask::storeJobDataWithSource(const ::JobInfo& crawledJob, int sourceId) {
     }
 
     // 3. 存储主Job数据
-    qDebug() << "[DEBUG] [SqlTask] Insert Job with sourceId=" << sourceId
+    qDebug() << "[SqlTask] Insert Job with sourceId=" << sourceId
              << ", jobId=" << static_cast<qlonglong>(sqlJob.jobId)
              << ", jobName=" << sqlJob.jobName;
     int insertRes = m_sqlInterface->insertJob(sqlJob);

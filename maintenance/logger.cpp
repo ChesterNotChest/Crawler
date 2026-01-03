@@ -102,7 +102,27 @@ bool initializeLogger(const QString &logDir, const QString &baseName) {
     {
         QMutexLocker locker(&g_logMutex);
         if (g_initialized) return true;
-        g_logDir = logDir;
+        // Resolve relative path: if caller provided a relative `logDir` (e.g. "logs"),
+        // prefer a `logs` folder located at the project root (where CMakeLists.txt resides).
+        QString resolvedLogDir;
+        QDir inDir(logDir);
+        if (inDir.isRelative()) {
+            QString appDir = QCoreApplication::applicationDirPath();
+            QDir d(appDir);
+            bool found = false;
+            // climb up at most 6 levels to find CMakeLists.txt
+            for (int i = 0; i < 6; ++i) {
+                QString candidate = d.absoluteFilePath("CMakeLists.txt");
+                if (QFile::exists(candidate)) { found = true; break; }
+                if (!d.cdUp()) break;
+            }
+            QString projectDir = found ? d.absolutePath() : appDir;
+            resolvedLogDir = QDir(projectDir).filePath(logDir);
+        } else {
+            resolvedLogDir = logDir;
+        }
+
+        g_logDir = resolvedLogDir;
         g_baseName = baseName;
 
         QDir d(g_logDir);

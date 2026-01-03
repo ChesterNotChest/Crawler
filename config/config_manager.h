@@ -44,6 +44,9 @@ public:
      */
     static bool isLoaded();
 
+    // Get the saveAndVectorize flag from config.json. Returns defaultValue if not set.
+    static bool getSaveAndVectorize(bool defaultValue = true);
+
 private:
     static QJsonObject s_config;
     static bool s_loaded;

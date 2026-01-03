@@ -7,6 +7,9 @@
 #include <memory>
 #include "network/webview2_browser_wrl.h"
 #include "constants/network_types.h"
+#include "ai_transfer_task.h"
+#include <QJsonObject>
+#include "config/config_manager.h"
 
 
 CrawlerTask::CrawlerTask(SQLInterface *sqlInterface, WebView2BrowserWRL *sessionBrowser)
@@ -55,6 +58,8 @@ int CrawlerTask::crawlAll(const std::vector<std::string>& sources, const std::ve
     qDebug() << "[CrawlerTask] crawlAll 启动，sources size=" << sources.size() << " maxPagesPerSourceList size=" << maxPagesPerSourceList.size() << " pageSize=" << pageSize;
 
     int totalStored = 0;
+    // Read configuration flag to decide whether to call the vectorization endpoint.
+    bool doVectorize = ConfigManager::getSaveAndVectorize(true);
     // per-source statistics
     std::vector<int> storedPerSource(sources.size(), 0);
     std::vector<int> pagesFetchedPerSource(sources.size(), 0);
@@ -182,7 +187,27 @@ int CrawlerTask::crawlAll(const std::vector<std::string>& sources, const std::ve
                 // store jobs one by one to enable fine-grained progress updates
                 for (size_t i = 0; i < jobs.size(); ++i) {
                     int res = m_sqlTask.storeJobDataWithSource(jobs[i], sourceId);
-                    if (res >= 0) storedCount++;
+                    if (res >= 0) {
+                        storedCount++;
+
+                        // After storing, send this single job to Python backend for vectorization.
+                        // Build a compact JSON object similar to AITransferTask::formatJobDataForAPI
+                        QJsonObject jobObj;
+                        jobObj["jobId"] = QString::number(res);
+                        QString info;
+                        info += QString::fromStdString(jobs[i].info_name) + "\n";
+                        info += QString::fromStdString(jobs[i].company_name) + "\n";
+                        info += QString::fromStdString(jobs[i].area_name) + "\n";
+                        info += QString::number(jobs[i].salary_min) + "-" + QString::number(jobs[i].salary_max) + "\n";
+                        info += QString::fromStdString(jobs[i].requirements);
+                        jobObj["info"] = info;
+
+                        // Optionally call blocking sender for vectorization based on config
+                        if (doVectorize) {
+                            bool ok = AITransferTask::sendSingleJobBlocking(jobObj);
+                            if (!ok) qWarning() << "Vectorization request failed for job" << res;
+                        }
+                    }
                     // compute fractional progress: (pagesFetched + fractionWithinPage) / effectiveExpected
                     double fracWithinPage = (static_cast<double>(i) + 1.0) / static_cast<double>(jobs.size());
                     double fraction = (static_cast<double>(pagesFetchedForSource) + fracWithinPage) / static_cast<double>(effectiveExpected);

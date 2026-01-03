@@ -1,12 +1,7 @@
 {
-    "nowcode": {
-        "comment": "牛客网暂不需要Cookie",
-        "cookie": ""
-    },
+    "saveAndVectorize": true,
     "zhipin": {
-        "city": "101010100",
-        "comment": "从浏览器DevTools → Network → Headers → Cookie复制完整字符串",
-        "cookie": "__a=26778820.1767113661.1767362166.1767362794.100.41.5.100; __l=l=%2Fwww.zhipin.com%2Fweb%2Fgeek%2Fjobs%3Fcity%3D101010100&r=&g=&s=3&friend_source=0&s=3&friend_source=0; __c=1767362794; __g=-; __zp_stoken__=4ddagw4o3w4xbOgtbY2hcDMOCeVhcVVtMfmxqwqxMcsKIw4hUVXTDh1bCp8K7w4RbwovCgMODU8Knw4HCj8Kswq7Cs8KiVMKuT8OCV8O9YsKUw4bDssK7w5vDiMKWwrvEhcKlw5HCrcOyw4fDr8K9xIXCi8WEUsO1w4TDisOGw5%2FDvcOgwqnEvMKyxYXCvcO3wpzFhMOxw4rCksOkxInDnMKRxLzCrsOYxbHEp8KMxrhQxIPCvsKNRjPCv8O%2BxYTFhMWAxL7Dn8SExYTFgMS%2Bwr%2FFhMWExYDDosO%2Fw4zDlMWAxL7FgMWExYTFgMS%2BOz1GPT1JPTHCsT86N8OGL8K9OEVFwrrCosK9woXCu8KkwrrDk8K7wqDCvSJDJiUNGFoKaA0PCxUYZl0LaWgNDxkZDlpoaAtmWxQMCg4KFy5Bw4dBE8K%2Bw4AZUwsVGcKHDcOPZWzDtjDCvHgbNjzEiTPDl0dJwr%2FEv0VHQTw%2BRTo6IUhGRkg8PT1GOjE8wrPCosORZHfDtjTCul4gPj1BPz5FOGo8PT9IOjw9QUZIMD09woMwScK6wpnDhcORPD0%3D; Hm_lvt_194df3105ad7148dcf2b98a91b5e727a=1767159036,1767160739,1767160810,1767355285; ab_guid=82917bf6-01ee-4f18-976e-0337da8d47f7; lastCity=101010100",
-        "updateTime": "2026-01-02"
+        "cookie": "",
+        "updateTime": "2026-01-03"
     }
 }

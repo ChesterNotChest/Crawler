@@ -126,3 +126,20 @@ QString ConfigManager::getNowcodeCookie() {
 bool ConfigManager::isLoaded() {
     return s_loaded;
 }
+
+bool ConfigManager::getSaveAndVectorize(bool defaultValue) {
+    if (!s_loaded) {
+        loadConfig();
+    }
+    if (s_config.contains("saveAndVectorize")) {
+        const auto v = s_config.value("saveAndVectorize");
+        if (v.isBool()) return v.toBool();
+        // accept numeric/string truthy forms
+        if (v.isDouble()) return v.toDouble() != 0.0;
+        if (v.isString()) {
+            QString s = v.toString().toLower();
+            return (s == "1" || s == "true" || s == "yes" || s == "on");
+        }
+    }
+    return defaultValue;
+}

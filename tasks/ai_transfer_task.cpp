@@ -20,6 +20,11 @@
 #include <qscrollarea.h>
 #include "db/sqlinterface.h"
 #include "constants/db_types.h"
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QEventLoop>
+#include <QJsonDocument>
 
 AITransferTask::AITransferTask(QObject *parent)
     : QObject(parent)
@@ -744,4 +749,58 @@ void AITransferTask::cancelOperation()
     emit transferCompleted(false, "操作已取消");
     
     qDebug() << "操作已成功取消";
+}
+
+bool AITransferTask::sendSingleJobBlocking(const QJsonObject &jobObj, const QString &serverUrl)
+{
+    QNetworkAccessManager manager;
+    QNetworkRequest request(QUrl(serverUrl + "/process_single_data"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    // Ensure payload matches Python endpoint expectation: { "data_item": { ... } }
+    QJsonObject payloadObj;
+    if (jobObj.contains("data_item")) {
+        payloadObj = jobObj; // already wrapped by caller
+    } else {
+        payloadObj["data_item"] = jobObj;
+    }
+
+    QJsonDocument doc(payloadObj);
+    QByteArray payload = doc.toJson(QJsonDocument::Compact);
+    qInfo() << "sendSingleJobBlocking: sending payload:" << QString::fromUtf8(payload);
+
+    QNetworkReply *reply = manager.post(request, payload);
+
+    QEventLoop loop;
+    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    // optional timeout
+    QTimer timer;
+    timer.setSingleShot(true);
+    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+    timer.start(15000); // 15s timeout
+
+    loop.exec();
+
+    if (timer.isActive()) timer.stop();
+
+    if (!reply) return false;
+
+    QByteArray resp = reply->readAll();
+    int httpCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    reply->deleteLater();
+
+    if (httpCode >= 200 && httpCode < 300) {
+        QJsonDocument rdoc = QJsonDocument::fromJson(resp);
+        if (!rdoc.isNull() && rdoc.isObject()) {
+            QJsonObject robj = rdoc.object();
+            bool success = robj.value("success").toBool(false);
+            qInfo() << "sendSingleJobBlocking: backend reply success=" << success << " msg=" << robj.value("message").toString();
+            return success;
+        }
+        qInfo() << "sendSingleJobBlocking: backend returned non-JSON or empty response";
+        return false;
+    }
+
+    qWarning() << "sendSingleJobBlocking: HTTP error code" << httpCode << "response:" << QString::fromUtf8(resp);
+    return false;
 }

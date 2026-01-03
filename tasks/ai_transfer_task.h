@@ -25,6 +25,7 @@
 #include <QFile>
 #include <QCoreApplication>
 #include <QDebug>
+#include <QJsonObject>
 
 /**
  * @brief AITransferTask - AI数据传输任务
@@ -83,6 +84,12 @@ public:
      * @brief 取消当前操作
      */
     void cancelOperation();
+
+    // Send a single job to the Python backend synchronously (blocking).
+    // This is a convenience for callers that run in worker threads and
+    // need the vectorization request to be performed immediately.
+    // Returns true if the backend responded with success.
+    static bool sendSingleJobBlocking(const QJsonObject &jobObj, const QString &serverUrl = QStringLiteral("http://localhost:8000"));
 
 signals:
     /**

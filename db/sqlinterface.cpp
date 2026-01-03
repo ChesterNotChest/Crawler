@@ -50,16 +50,17 @@ bool SQLInterface::isConnected() const {
 }
 
 void SQLInterface::disconnect() {
-	// remove all crawler_conn_* connections
-	const auto names = QSqlDatabase::connectionNames();
-	for (const QString &name : names) {
-		if (name.startsWith("crawler_conn_")) {
-			if (QSqlDatabase::contains(name)) {
-				QSqlDatabase db = QSqlDatabase::database(name);
-				if (db.isOpen()) db.close();
-			}
-			QSqlDatabase::removeDatabase(name);
+	// Only remove the connection for the current thread. The previous
+	// implementation removed all connections that matched the prefix,
+	// which could close/remove connections belonging to other threads
+	// while they were still in use.
+	const QString connName = QStringLiteral("crawler_conn_%1").arg((quintptr)QThread::currentThreadId());
+	if (QSqlDatabase::contains(connName)) {
+		{
+			QSqlDatabase db = QSqlDatabase::database(connName);
+			if (db.isOpen()) db.close();
 		}
+		QSqlDatabase::removeDatabase(connName);
 	}
 }
 
