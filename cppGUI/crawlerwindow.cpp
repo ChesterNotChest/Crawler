@@ -134,6 +134,14 @@ CrawlerWindow::CrawlerWindow(QWidget *parent) : QMainWindow(parent), currentPage
             border-color: #3498db;
             box-shadow: 0 0 0 2px rgba(52,152,219,0.15);
         }
+        QSpinBox {
+            background: #ffffff;
+            color: #000000;
+            border: 1px solid #dfe6ed;
+            border-radius: 8px;
+            padding: 4px 8px;
+            min-width: 72px;
+        }
         QPushButton {
             background-color: #3498db;
             color: #ffffff;
@@ -382,6 +390,17 @@ QMap<QString, QVector<QString>> CrawlerWindow::getFieldFilters() {
 void CrawlerWindow::showFilterDialog(const QString &field, QPushButton *button) {
     QDialog dialog(this);
     dialog.setWindowTitle(button->text());
+    dialog.setStyleSheet(R"(
+        QDialog { background: #ffffff; }
+        QLineEdit { border: 1px solid #dfe6ed; border-radius: 8px; padding: 6px 8px; background: #ffffff; }
+        QCheckBox { color: #000000; }
+        QCheckBox::indicator { width: 16px; height: 16px; border: 1px solid #c4c9d0; border-radius: 3px; background: #ffffff; }
+        QCheckBox::indicator:checked { background-color: #3498db; border-color: #2980b9; }
+        QListWidget { background: #ffffff; border: 1px solid #dfe6ed; border-radius: 8px; }
+        QPushButton { background-color: #3498db; color: #ffffff; border: none; border-radius: 8px; padding: 6px 12px; }
+        QPushButton:hover { background-color: #2980b9; }
+    )");
+
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
 
     QLineEdit *searchEdit = new QLineEdit;
@@ -392,30 +411,71 @@ void CrawlerWindow::showFilterDialog(const QString &field, QPushButton *button) 
     layout->addWidget(selectAll);
 
     QListWidget *listWidget = new QListWidget;
+    listWidget->setSelectionMode(QAbstractItemView::NoSelection);
     layout->addWidget(listWidget);
 
-    // Populate listWidget with items from filterOptions (sorted alphabetically)
+    // Populate listWidget with custom widgets (keeps checkboxes visible/stylable)
     const QSet<QString> &optionsSet = filterOptions.value(field);
     QStringList optionsList;
     for (const QString &opt : optionsSet) optionsList << opt;
     optionsList.sort(Qt::CaseInsensitive);
     QVector<QString> currentChecked = currentFilters.value(field);
+    // helper: convert salary slab id -> human readable label
+    auto salaryLabel = [](int slabId) -> QString {
+        if (slabId == 0) return QStringLiteral("薪资面议");
+        switch (slabId) {
+            case 1: return QStringLiteral("≤100/≤15k");
+            case 2: return QStringLiteral("101-200/15k-25k");
+            case 3: return QStringLiteral("201-300/25k-40k");
+            case 4: return QStringLiteral("301-400/40k-60k");
+            case 5: return QStringLiteral("401-600/60k-100k");
+            case 6: return QStringLiteral("薪资面议");
+            default: return QString::number(slabId);
+        }
+    };
+
     for (const QString &option : optionsList) {
-        QListWidgetItem *item = new QListWidgetItem(option);
-        item->setCheckState(currentChecked.contains(option) ? Qt::Checked : Qt::Unchecked);
-        listWidget->addItem(item);
+        QListWidgetItem *item = new QListWidgetItem(listWidget);
+        QWidget *w = new QWidget;
+        QHBoxLayout *h = new QHBoxLayout(w);
+        h->setContentsMargins(6, 2, 6, 2);
+        QCheckBox *cb = nullptr;
+        // If this is the salary field, show readable label but keep slab id as data
+        if (field == "salary") {
+            bool ok = false;
+            int slab = option.toInt(&ok);
+            QString label = ok ? salaryLabel(slab) : option;
+            cb = new QCheckBox(label);
+            cb->setProperty("value", option); // keep original id string
+            cb->setChecked(currentChecked.contains(option));
+        } else {
+            cb = new QCheckBox(option);
+            cb->setChecked(currentChecked.contains(option));
+        }
+        h->addWidget(cb);
+        h->addStretch();
+        item->setSizeHint(w->sizeHint());
+        listWidget->setItemWidget(item, w);
     }
 
     connect(searchEdit, &QLineEdit::textChanged, [listWidget](const QString &text) {
         for (int i = 0; i < listWidget->count(); ++i) {
             QListWidgetItem *item = listWidget->item(i);
-            item->setHidden(!item->text().contains(text, Qt::CaseInsensitive));
+            QWidget *w = listWidget->itemWidget(item);
+            if (!w) continue;
+            QCheckBox *cb = w->findChild<QCheckBox *>();
+            if (!cb) continue;
+            item->setHidden(!cb->text().contains(text, Qt::CaseInsensitive));
         }
     });
 
     connect(selectAll, &QCheckBox::toggled, [listWidget](bool checked) {
         for (int i = 0; i < listWidget->count(); ++i) {
-            listWidget->item(i)->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
+            QListWidgetItem *item = listWidget->item(i);
+            QWidget *w = listWidget->itemWidget(item);
+            if (!w) continue;
+            QCheckBox *cb = w->findChild<QCheckBox *>();
+            if (cb) cb->setChecked(checked);
         }
     });
 
@@ -431,8 +491,16 @@ void CrawlerWindow::showFilterDialog(const QString &field, QPushButton *button) 
     connect(okBtn, &QPushButton::clicked, &dialog, [this, &dialog, listWidget, field]() {
         QVector<QString> checked;
         for (int i = 0; i < listWidget->count(); ++i) {
-            if (listWidget->item(i)->checkState() == Qt::Checked) {
-                checked.append(listWidget->item(i)->text());
+            QListWidgetItem *item = listWidget->item(i);
+            QWidget *w = listWidget->itemWidget(item);
+            if (!w) continue;
+            QCheckBox *cb = w->findChild<QCheckBox *>();
+            if (cb && cb->isChecked()) {
+                if (field == "salary" && cb->property("value").isValid()) {
+                    checked.append(cb->property("value").toString());
+                } else {
+                    checked.append(cb->text());
+                }
             }
         }
         currentFilters[field] = checked;

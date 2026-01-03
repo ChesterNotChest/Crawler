@@ -137,10 +137,18 @@ std::pair<std::vector<JobInfo>, MappingData> parseChinahrResponse(const json &js
                         job.salary_min = v;
                         job.salary_max = v;
                     }
+                    // If parsed max is zero but min is present, use min as max
+                    if (job.salary_max == 0.0 && job.salary_min > 0.0) {
+                        job.salary_max = job.salary_min;
+                    }
                 }
 
                 // 若不含K，自动设为实习 (2)
                 job.type_id = hasK ? 3 : 2;
+                // 如果 min 超过 100，认定为实习（覆盖任何基于 K 的判断）
+                if (job.salary_min > 100.0) {
+                    job.type_id = 2;
+                }
 
                 // 薪资回退规则：如果没有数字或解析均为0，则设为 [0, 99999]（不改变 type_id）
                 if (salary_desc.empty() || (job.salary_min == 0.0 && job.salary_max == 0.0)) {
