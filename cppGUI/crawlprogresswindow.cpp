@@ -6,14 +6,16 @@
 
 // 新增 m_sessionBrowser 初始化
 CrawlProgressWindow::CrawlProgressWindow(const std::vector<std::string>& sources, const std::vector<int>& maxPagesList, QWidget *parent)
-    : QMainWindow(parent), m_sources(sources), m_maxPagesList(maxPagesList), m_crawlerTask(nullptr), m_sqlInterface(nullptr), m_crawlThread(nullptr), m_sessionBrowser(nullptr) {
+    : QMainWindow(parent), m_sources(sources), m_maxPagesList(maxPagesList), m_crawlerTask(nullptr), m_sqlInterface(nullptr), m_crawlThread(nullptr), m_sessionBrowser(nullptr), m_emittedFinished(false) {
         // 只需创建一次，主线程 new，避免子线程 new QWidget
         m_sessionBrowser = new WebView2BrowserWRL();
     setWindowTitle("爬取进度");
-    setFixedSize(400, 200);
+    setFixedSize(520, 260);
 
     QWidget *central = new QWidget;
     QVBoxLayout *layout = new QVBoxLayout(central);
+    layout->setContentsMargins(24, 20, 24, 20);
+    layout->setSpacing(14);
 
     progressBar = new QProgressBar;
     progressBar->setRange(0, 100);
@@ -30,17 +32,62 @@ CrawlProgressWindow::CrawlProgressWindow(const std::vector<std::string>& sources
     layout->addWidget(statusLabel);
 
     QHBoxLayout *buttonLayout = new QHBoxLayout;
+    buttonLayout->setSpacing(10);
     pauseResumeButton = new QPushButton("暂停");
     connect(pauseResumeButton, &QPushButton::clicked, this, &CrawlProgressWindow::onPauseResumeClicked);
     buttonLayout->addWidget(pauseResumeButton);
 
     terminateButton = new QPushButton("终止");
+    terminateButton->setObjectName("danger");
     connect(terminateButton, &QPushButton::clicked, this, &CrawlProgressWindow::onTerminateClicked);
     buttonLayout->addWidget(terminateButton);
 
     layout->addLayout(buttonLayout);
 
     setCentralWidget(central);
+
+    setStyleSheet(R"(
+        CrawlProgressWindow, QMainWindow {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                stop:0 #f8f9fa, stop:1 #e9ecef);
+        }
+        QLabel {
+            color: #34495e;
+            font-size: 14px;
+        }
+        QProgressBar {
+            border: 1px solid #dfe6ed;
+            border-radius: 10px;
+            background: #ffffff;
+            text-align: center;
+            color: #000000;
+            height: 18px;
+        }
+        QProgressBar::chunk {
+            background-color: #3498db;
+            border-radius: 10px;
+        }
+        QPushButton {
+            background-color: #3498db;
+            color: #ffffff;
+            border: none;
+            border-radius: 10px;
+            padding: 8px 16px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #2980b9;
+        }
+        QPushButton:pressed {
+            background-color: #2471a3;
+        }
+        QPushButton#danger {
+            background-color: #e74c3c;
+        }
+        QPushButton#danger:hover {
+            background-color: #c0392b;
+        }
+    )");
 
     startCrawling();
 }
@@ -131,6 +178,10 @@ void CrawlProgressWindow::updateProgress(int current, int total, const QString& 
     // keep status message only; overall progress handled by source fractions
     statusLabel->setText(message);
     if (current >= total) {
+        if (!m_emittedFinished) {
+            m_emittedFinished = true;
+            emit crawlFinished(message);
+        }
         pauseResumeButton->setEnabled(false);
         terminateButton->setText("关闭");
         disconnect(terminateButton, &QPushButton::clicked, this, &CrawlProgressWindow::onTerminateClicked);

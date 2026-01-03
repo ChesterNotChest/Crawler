@@ -120,14 +120,14 @@ void LauncherWindow::setupUI()
 void LauncherWindow::setupTitleArea()
 {
     // 主标题
-    titleLabel = new QLabel("AI助手", this);
+    titleLabel = new QLabel("爬虫助手", this);
     titleLabel->setAlignment(Qt::AlignCenter);
     titleLabel->setStyleSheet(R"(
         QLabel {
             font-size: 48px;
             font-weight: bold;
             color: #2c3e50;
-            margin: 20px 0px;
+            margin: 0px 0px;
         }
     )");
     mainLayout->addWidget(titleLabel);
@@ -139,7 +139,7 @@ void LauncherWindow::setupTitleArea()
         QLabel {
             font-size: 18px;
             color: #7f8c8d;
-            margin: 10px 0px 30px 0px;
+            margin: 0px 0px 30px 0px;
         }
     )");
     mainLayout->addWidget(subtitleLabel);
@@ -461,12 +461,42 @@ void LauncherWindow::onSettingsButtonClicked()
 
 void LauncherWindow::onAboutButtonClicked()
 {
-    QMessageBox::about(this, "关于AI助手",
-                       "AI助手 v1.0.0\n\n"
-                       "智能就业助手，助您找到理想工作\n\n"
-                       "开发团队：AI开发团队\n"
-                       "技术支持：Qt + Python + AI\n"
-                       "© 2025 AI开发团队");
+    QMessageBox msg(this);
+    msg.setWindowTitle("关于AI助手");
+    msg.setText(
+        "AI助手 v1.1.13\n\n"
+        "智能就业助手，助您找到理想工作\n\n"
+        "开发团队：AI开发团队\n"
+        "技术支持：Qt + Python + AI\n"
+        "© 2025 AI开发团队");
+    msg.setIcon(QMessageBox::Information);
+    msg.setStandardButtons(QMessageBox::Ok);
+
+    // 设置样式：对白色背景和蓝色 OK 按钮进行自定义
+    msg.setStyleSheet(R"(
+        QMessageBox {
+            background-color: white;
+        }
+        QMessageBox QLabel {
+            color: #2c3e50;
+        }
+        QMessageBox QPushButton {
+            background-color: #0078d4;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            min-width: 80px;
+        }
+        QMessageBox QPushButton:hover {
+            background-color: #0063b1;
+        }
+        QMessageBox QPushButton:pressed {
+            background-color: #005799;
+        }
+    )");
+
+    msg.exec();
 }
 
 void LauncherWindow::onExitButtonClicked()
@@ -490,7 +520,7 @@ void LauncherWindow::onVersionCheckTimer()
             if (error.error == QJsonParseError::NoError && doc.isObject()) {
                 QJsonObject obj = doc.object();
                 QString latestVersion = obj["tag_name"].toString();
-                QString currentVersion = "1.0.0"; // 当前版本
+                QString currentVersion = "1.1.13"; // 当前版本
 
                 if (latestVersion > currentVersion) {
                     QMessageBox::information(this, "版本更新",

@@ -185,8 +185,9 @@ void ChatWindow::setupChatArea()
     chatContainer = new QWidget();
     chatContainer->setObjectName("chatContainer");
     chatLayout = new QVBoxLayout(chatContainer);
-    chatLayout->setAlignment(Qt::AlignBottom); // 确保最新消息在底部
     chatLayout->setSpacing(10);
+    chatLayout->setAlignment(Qt::AlignTop); // 消息从上到下排列
+    chatLayout->addStretch(); // 在底部添加stretch，保持布局紧凑
 
     chatScrollArea->setWidget(chatContainer);
     mainLayout->addWidget(chatScrollArea, 1); // 占剩余空间
@@ -580,53 +581,80 @@ void ChatWindow::displayMessage(const QString &sender, const QString &message)
     QFrame *messageFrame = new QFrame(chatContainer);
     messageFrame->setFrameStyle(QFrame::Box);
 
-    QHBoxLayout *messageLayout = new QHBoxLayout(messageFrame);
-    messageLayout->setContentsMargins(15, 10, 15, 10);
-    messageLayout->setSpacing(10);
-
-    // 发送者标签
-    QLabel *senderLabel = new QLabel(sender, messageFrame);
-    senderLabel->setStyleSheet(R"(
-        QLabel {
-            font-weight: bold;
-            color: #3498db;
-            font-size: 12px;
-        }
-    )");
-    messageLayout->addWidget(senderLabel);
-
-    // 消息内容
-    QLabel *contentLabel = new QLabel(formatMessage(sender, message), messageFrame);
-    contentLabel->setWordWrap(true);
-    contentLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    contentLabel->setStyleSheet(R"(
-        QLabel {
-            font-size: 14px;
-            color: #2c3e50;
-            background-color: #ecf0f1;
-            border-radius: 8px;
-            padding: 8px;
-        }
-    )");
-    messageLayout->addWidget(contentLabel);
-
-    // 根据发送者设置对齐
+    // 根据发送者创建不同的布局结构
     if (sender == "用户") {
-        messageLayout->addStretch();
-        messageLayout->setAlignment(Qt::AlignRight);
+        // 用户消息：右对齐
+        QHBoxLayout *userLayout = new QHBoxLayout(messageFrame);
+        userLayout->setContentsMargins(15, 10, 15, 10);
+        userLayout->setSpacing(10);
+
+        QLabel *contentLabel = new QLabel(formatMessage(sender, message), messageFrame);
+        contentLabel->setWordWrap(true);
+        contentLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        contentLabel->setStyleSheet(R"(
+            QLabel {
+                font-size: 14px;
+                color: #2c3e50;
+                background-color: #d1f2eb;
+                border-radius: 8px;
+                padding: 8px;
+                border: 1px solid #17a2b8;
+            }
+        )");
+        userLayout->addStretch();
+        userLayout->addWidget(contentLabel);
+        userLayout->addStretch();
     } else {
-        messageLayout->setAlignment(Qt::AlignLeft);
+        // AI消息：左对齐
+        QHBoxLayout *aiLayout = new QHBoxLayout(messageFrame);
+        aiLayout->setContentsMargins(15, 10, 15, 10);
+        aiLayout->setSpacing(10);
+
+        // 发送者标签
+        QLabel *senderLabel = new QLabel(sender, messageFrame);
+        senderLabel->setStyleSheet(R"(
+            QLabel {
+                font-weight: bold;
+                color: #3498db;
+                font-size: 12px;
+            }
+        )");
+        aiLayout->addWidget(senderLabel);
+
+        // 消息内容
+        QLabel *contentLabel = new QLabel(formatMessage(sender, message), messageFrame);
+        contentLabel->setWordWrap(true);
+        contentLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        contentLabel->setStyleSheet(R"(
+            QLabel {
+                font-size: 14px;
+                color: #2c3e50;
+                background-color: #f8f9fa;
+                border-radius: 8px;
+                padding: 8px;
+                border: 1px solid #dee2e6;
+            }
+        )");
+        aiLayout->addWidget(contentLabel);
+        aiLayout->addStretch();
     }
 
-    // 添加到布局中（在底部添加，确保消息按时间顺序显示）
-    layout->insertWidget(layout->count() - 1, messageFrame);
+    // 添加到布局中（在stretch之前添加，确保消息按时间顺序显示）
+    int stretchIndex = layout->count() - 1; // stretch是最后一个
+    if (stretchIndex >= 0) {
+        layout->insertWidget(stretchIndex, messageFrame);
+    } else {
+        layout->addWidget(messageFrame);
+    }
 
     // 立即滚动到底部显示最新消息
     QTimer::singleShot(50, [this]() {
         QScrollArea *scrollArea = this->findChild<QScrollArea*>("chatScrollArea");
         if (scrollArea) {
             QScrollBar *scrollBar = scrollArea->verticalScrollBar();
-            scrollBar->setValue(scrollBar->maximum());
+            if (scrollBar) {
+                scrollBar->setValue(scrollBar->maximum());
+            }
         }
     });
 
