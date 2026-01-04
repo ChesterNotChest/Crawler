@@ -45,7 +45,7 @@
 ```txt
 Crawler/
 ├── main.cpp                 # 程序入口
-├── mainwindow.cpp/.h/.ui    # 主窗口 UI
+├── cppGUI/                  # C++ Qt GUI 子模块（LauncherWindow、CrawlerWindow 等，取代旧的 MainWindow）
 ├── CMakeLists.txt           # CMake 构建配置
 ├── ai/                      # Python AI 协调与 RAG 相关脚本（brain.py 等）
 ├── cppGUI/                  # Qt C++ GUI 子模块（聊天/配置/爬虫窗口）

@@ -43,9 +43,6 @@ set(CONFIG_SOURCES
 # 主应用源文件
 set(PROJECT_SOURCES
         main.cpp
-        mainwindow.cpp
-        mainwindow.h
-        mainwindow.ui
         db/sqlinterface.h 
         db/sqlinterface.cpp
         tasks/sql_task.h
